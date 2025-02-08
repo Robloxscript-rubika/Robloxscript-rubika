@@ -1,0 +1,126 @@
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+
+local Window = Rayfield:CreateWindow({
+   Name = "Wy No Scope Arcade",
+   LoadingTitle = "Wy No Scope Arcade",
+   LoadingSubtitle = "by Wyrizon",
+   ConfigurationSaving = {
+      Enabled = true,
+      FolderName = nil, -- Create a custom folder for your hub/game
+      FileName = "WY"
+   },
+   Discord = {
+      Enabled = false,
+      Invite = "noinvitelink", -- The Discord invite code, do not include discord.gg/. E.g. discord.gg/ABCD would be ABCD
+      RememberJoins = true -- Set this to false to make them join the discord every time they load it up
+   },
+   KeySystem = false, -- Set this to true to use our key system
+   KeySettings = {
+      Title = "Untitled",
+      Subtitle = "Key System",
+      Note = "No method of obtaining the key is provided",
+      FileName = "Key", -- It is recommended to use something unique as other scripts using Rayfield may overwrite your key file
+      SaveKey = true, -- The user's key will be saved, but if you change the key, they will be unable to use your script
+      GrabKeyFromSite = false, -- If this is true, set Key below to the RAW site you would like Rayfield to get the key from
+      Key = {"Hello"} -- List of keys that will be accepted by the system, can be RAW file links (pastebin, github etc) or simple strings ("hello","key22")
+   }
+})
+
+
+local MainTab = Window:CreateTab("Main", 4483362458)
+
+
+local Button = MainTab:CreateButton({
+   Name = "Hitbox",
+   Callback = function()
+   _G.HeadSize = 70 -- You can change the size to your desired value
+_G.Disabled = false -- Set to false to enable the effect initially
+
+game:GetService('RunService').RenderStepped:connect(function()
+    if not _G.Disabled then
+        for _, player in ipairs(game:GetService('Players'):GetPlayers()) do
+            if player.Name ~= game:GetService('Players').LocalPlayer.Name then
+                pcall(function()
+                    local character = player.Character
+                    if character then
+                        local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+                        if humanoidRootPart then
+                            humanoidRootPart.Size = Vector3.new(_G.HeadSize, _G.HeadSize, _G.HeadSize)
+                            humanoidRootPart.Transparency = 0.7
+                            humanoidRootPart.BrickColor = BrickColor.new("Bright red") -- Change to the desired color
+                            humanoidRootPart.Material = "Neon"
+                            humanoidRootPart.CanCollide = false
+                        end
+                    end
+                end)
+            end
+        end
+    end
+end)
+
+   end,
+})
+
+
+local Button = MainTab:CreateButton({
+   Name = "ESP",
+   Callback = function()
+   local FillColor = Color3.fromRGB(175,25,255)
+local DepthMode = "AlwaysOnTop"
+local FillTransparency = 0.5
+local OutlineColor = Color3.fromRGB(255,255,255)
+local OutlineTransparency = 0
+
+local CoreGui = game:FindService("CoreGui")
+local Players = game:FindService("Players")
+local lp = Players.LocalPlayer
+local connections = {}
+
+local Storage = Instance.new("Folder")
+Storage.Parent = CoreGui
+Storage.Name = "Highlight_Storage"
+
+local function Highlight(plr)
+    local Highlight = Instance.new("Highlight")
+    Highlight.Name = plr.Name
+    Highlight.FillColor = FillColor
+    Highlight.DepthMode = DepthMode
+    Highlight.FillTransparency = FillTransparency
+    Highlight.OutlineColor = OutlineColor
+    Highlight.OutlineTransparency = 0
+    Highlight.Parent = Storage
+    
+    local plrchar = plr.Character
+    if plrchar then
+        Highlight.Adornee = plrchar
+    end
+
+    connections[plr] = plr.CharacterAdded:Connect(function(char)
+        Highlight.Adornee = char
+    end)
+end
+
+Players.PlayerAdded:Connect(Highlight)
+for i,v in next, Players:GetPlayers() do
+    Highlight(v)
+end
+
+Players.PlayerRemoving:Connect(function(plr)
+    local plrname = plr.Name
+    if Storage[plrname] then
+        Storage[plrname]:Destroy()
+    end
+    if connections[plr] then
+        connections[plr]:Disconnect()
+    end
+end)
+   end,
+})
+
+
+local Button = MainTab:CreateButton({
+   Name = "Noclip",
+   Callback = function()
+   game.RunService.Stepped:Connect(function() game.Players.LocalPlayer.Character.Head.CanCollide = false game.Players.LocalPlayer.Character.Torso.CanCollide = false end)
+   end,
+})
