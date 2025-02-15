@@ -362,7 +362,17 @@ local Button = Main3Tab:CreateButton({
    end,
 })
 
-local Button = Main3Tab:CreateButton({
+local Main4Tab = Window:CreateTab("🌠تنظیمات گرافیک بازی🌠", nail) -- Title, Image
+local Section = Main4Tab:CreateSection("Main4")
+
+local Button = Main4Tab:CreateButton({
+   Name = "(یه اسکریپت که کیفیت رو خیلی میبره بالا):💻RTX💻(فقط در گوشی کار میکنه)",
+   Callback = function()
+loadstring(game:HttpGet('https://raw.githubusercontent.com/randomstring0/pshade-ultimate/refs/heads/main/src/cd.lua'))()
+   end,
+})
+
+local Button = Main4Tab:CreateButton({
    Name = "(یه اسکریت که کیفیت بازی رو پایین میاره)➰FPS booster➰",
    Callback = function()
 -- Services
