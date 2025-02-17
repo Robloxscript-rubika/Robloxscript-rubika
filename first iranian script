@@ -154,6 +154,13 @@ local function ClearHighlights()
     connections = {}
 end
 
+local Button = MainTab:CreateButton({
+   Name = "🏹ایم بات🏹",
+   Callback = function()
+  loadstring(game:HttpGet("https://raw.githubusercontent.com/Robloxscript-rubika/Robloxscript-rubika/refs/heads/main/Mobile"))()
+   end,
+})
+
 local MainTab = -- Assuming MainTab is defined earlier. If not, you need to define it.
 MainTab:CreateToggle({
     Name = "(یه اسکریپت که پلیر هارو هایلایت میکنه)👤esp player👤",
@@ -221,6 +228,102 @@ local Slider = Main2Tab:CreateSlider({
    Flag = "Slider1", -- A flag is the identifier for the configuration file, make sure every element has a different flag if you're using configuration saving to ensure no overlaps
    Callback = function(Value)
    game.Players.LocalPlayer.Character.Humanoid.JumpPower = (Value)
+   end,
+})
+
+local Main4Tab = Window:CreateTab("🌠تنظیمات گرافیک بازی🌠", nail) -- Title, Image
+local Section = Main4Tab:CreateSection("Main4")
+
+local Button = Main4Tab:CreateButton({
+   Name = "(یه اسکریپت که کیفیت رو خیلی میبره بالا):💻RTX💻(فقط در گوشی کار میکنه)",
+   Callback = function()
+loadstring(game:HttpGet('https://raw.githubusercontent.com/randomstring0/pshade-ultimate/refs/heads/main/src/cd.lua'))()
+   end,
+})
+
+local Button = Main4Tab:CreateButton({
+   Name = "(یه اسکریت که کیفیت بازی رو پایین میاره)➰FPS booster➰",
+   Callback = function()
+-- Services
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local Lighting = game:GetService("Lighting")
+local Workspace = game:GetService("Workspace")
+local Settings = game:GetService("Settings")
+local RunService = game:GetService("RunService")
+
+-- Character
+local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+
+-- Graphics Settings
+Lighting.GlobalShadows = false -- Disable shadows
+Lighting.FogEnd = 9e9 -- Remove fog
+Lighting.EnvironmentSpecularScale = 0 -- Remove reflections
+
+-- Terrain
+if Workspace:FindFirstChild("Terrain") then
+  Workspace.Terrain.WaterWaveSize = 0 -- Remove water waves
+  Workspace.Terrain.WaterWaveSpeed = 0 -- Remove water wave speed
+end
+
+-- Effects
+local function DestroyEffects(object)
+  for _, child in pairs(object:GetChildren()) do
+    if child:IsA("Decal") or child:IsA("ParticleEmitter") or child:IsA("Trail") or child:IsA("Fire") or child:IsA("Smoke") then
+      child:Destroy()
+    end
+    DestroyEffects(child)
+  end
+end
+
+DestroyEffects(Workspace)
+
+-- Rendering Settings
+Settings.Rendering.QualityLevel = Enum.QualityLevel.Automatic -- Lowest quality
+Settings.Rendering.MeshPartDetailLevel = Enum.MeshPartDetailLevel.Level04 -- Lowest mesh detail
+Settings.Rendering.RenderDistance = 100 -- Very short render distance
+
+-- FPS Cap
+RunService:SetDesiredFPS(30) -- Set FPS cap to 30 (adjust as needed)
+
+-- Performance Optimization
+local function OptimizePerformance()
+  -- Reduce network usage (optional, may affect gameplay)
+  -- game:GetService("NetworkClient").MaxSendRate = 1000
+
+  -- Lower character detail (may affect appearance)
+  if Character then
+    for _, child in pairs(Character:GetChildren()) do
+      if child:IsA("MeshPart") then
+        child.RenderFidelity = Enum.RenderFidelity.Automatic
+      end
+    end
+  end
+end
+
+OptimizePerformance()
+
+-- FPS Display (optional)
+local function DisplayFPS()
+  local frame = Instance.new("Frame")
+  frame.Parent = LocalPlayer:GetPlayerGui()
+  frame.BackgroundTransparency = 1
+  frame.Size = UDim2.new(0, 100, 0, 20)
+  frame.Position = UDim2.new(0, 10, 0, 10)
+
+  local textLabel = Instance.new("TextLabel")
+  textLabel.Parent = frame
+  textLabel.BackgroundTransparency = 1
+  textLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+  textLabel.Font = Enum.Font.SourceSansBold
+  textLabel.TextSize = 14
+
+  RunService.Heartbeat:Connect(function()
+    textLabel.Text = "FPS: " .. math.floor(1 / RunService.Heartbeat:GetElapsedTime())
+  end)
+end
+
+DisplayFPS()
    end,
 })
 
@@ -359,101 +462,5 @@ local Button = Main3Tab:CreateButton({
    Name = "ANTI AFK🤖",
    Callback = function()
    loadstring(game:HttpGet("https://raw.githubusercontent.com/Robloxscript-rubika/Robloxscript-rubika/refs/heads/main/Roblox-script-by-mr.omlet"))()
-   end,
-})
-
-local Main4Tab = Window:CreateTab("🌠تنظیمات گرافیک بازی🌠", nail) -- Title, Image
-local Section = Main4Tab:CreateSection("Main4")
-
-local Button = Main4Tab:CreateButton({
-   Name = "(یه اسکریپت که کیفیت رو خیلی میبره بالا):💻RTX💻(فقط در گوشی کار میکنه)",
-   Callback = function()
-loadstring(game:HttpGet('https://raw.githubusercontent.com/randomstring0/pshade-ultimate/refs/heads/main/src/cd.lua'))()
-   end,
-})
-
-local Button = Main4Tab:CreateButton({
-   Name = "(یه اسکریت که کیفیت بازی رو پایین میاره)➰FPS booster➰",
-   Callback = function()
--- Services
-local Players = game:GetService("Players")
-local LocalPlayer = Players.LocalPlayer
-local Lighting = game:GetService("Lighting")
-local Workspace = game:GetService("Workspace")
-local Settings = game:GetService("Settings")
-local RunService = game:GetService("RunService")
-
--- Character
-local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
-
--- Graphics Settings
-Lighting.GlobalShadows = false -- Disable shadows
-Lighting.FogEnd = 9e9 -- Remove fog
-Lighting.EnvironmentSpecularScale = 0 -- Remove reflections
-
--- Terrain
-if Workspace:FindFirstChild("Terrain") then
-  Workspace.Terrain.WaterWaveSize = 0 -- Remove water waves
-  Workspace.Terrain.WaterWaveSpeed = 0 -- Remove water wave speed
-end
-
--- Effects
-local function DestroyEffects(object)
-  for _, child in pairs(object:GetChildren()) do
-    if child:IsA("Decal") or child:IsA("ParticleEmitter") or child:IsA("Trail") or child:IsA("Fire") or child:IsA("Smoke") then
-      child:Destroy()
-    end
-    DestroyEffects(child)
-  end
-end
-
-DestroyEffects(Workspace)
-
--- Rendering Settings
-Settings.Rendering.QualityLevel = Enum.QualityLevel.Automatic -- Lowest quality
-Settings.Rendering.MeshPartDetailLevel = Enum.MeshPartDetailLevel.Level04 -- Lowest mesh detail
-Settings.Rendering.RenderDistance = 100 -- Very short render distance
-
--- FPS Cap
-RunService:SetDesiredFPS(30) -- Set FPS cap to 30 (adjust as needed)
-
--- Performance Optimization
-local function OptimizePerformance()
-  -- Reduce network usage (optional, may affect gameplay)
-  -- game:GetService("NetworkClient").MaxSendRate = 1000
-
-  -- Lower character detail (may affect appearance)
-  if Character then
-    for _, child in pairs(Character:GetChildren()) do
-      if child:IsA("MeshPart") then
-        child.RenderFidelity = Enum.RenderFidelity.Automatic
-      end
-    end
-  end
-end
-
-OptimizePerformance()
-
--- FPS Display (optional)
-local function DisplayFPS()
-  local frame = Instance.new("Frame")
-  frame.Parent = LocalPlayer:GetPlayerGui()
-  frame.BackgroundTransparency = 1
-  frame.Size = UDim2.new(0, 100, 0, 20)
-  frame.Position = UDim2.new(0, 10, 0, 10)
-
-  local textLabel = Instance.new("TextLabel")
-  textLabel.Parent = frame
-  textLabel.BackgroundTransparency = 1
-  textLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-  textLabel.Font = Enum.Font.SourceSansBold
-  textLabel.TextSize = 14
-
-  RunService.Heartbeat:Connect(function()
-    textLabel.Text = "FPS: " .. math.floor(1 / RunService.Heartbeat:GetElapsedTime())
-  end)
-end
-
-DisplayFPS()
    end,
 })
