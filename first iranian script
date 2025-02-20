@@ -93,11 +93,11 @@ game:GetService('RunService').RenderStepped:connect(function()
         for i, v in next, game:GetService('Players'):GetPlayers() do
             if v.Name ~= game:GetService('Players').LocalPlayer.Name then
                 pcall(function()
-                    v.Character.HumanoidRootPart.Size = Vector3.new(0, 0, 0)  -- Default size (reset)
+                    v.Character.HumanoidRootPart.Size = Vector3.new(2, 2, 1)  -- Default size (reset)
                     v.Character.HumanoidRootPart.Transparency = 0
-                    v.Character.HumanoidRootPart.BrickColor = BrickColor.new("red")  -- Default color (reset)
+                    v.Character.HumanoidRootPart.BrickColor = BrickColor.new("gray")  -- Default color (reset)
                     v.Character.HumanoidRootPart.Material = "plastic"  -- Default material (reset)
-                    v.Character.HumanoidRootPart.CanCollide = true
+                    v.Character.HumanoidRootPart.CanCollide = false
                 end)
             end
         end
