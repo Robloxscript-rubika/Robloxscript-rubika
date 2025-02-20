@@ -71,7 +71,6 @@ local MainToggle = MainTab:CreateToggle({
    end,
 })
 
--- Set initial values
 _G.HeadSize = 25
 _G.Disabled = true
 
@@ -96,8 +95,8 @@ game:GetService('RunService').RenderStepped:connect(function()
                 pcall(function()
                     v.Character.HumanoidRootPart.Size = Vector3.new(0, 0, 0)  -- Default size (reset)
                     v.Character.HumanoidRootPart.Transparency = 0
-                    v.Character.HumanoidRootPart.BrickColor = BrickColor.new("nail")  -- Default color (reset)
-                    v.Character.HumanoidRootPart.Material = "nail"  -- Default material (reset)
+                    v.Character.HumanoidRootPart.BrickColor = BrickColor.new("red")  -- Default color (reset)
+                    v.Character.HumanoidRootPart.Material = "plastic"  -- Default material (reset)
                     v.Character.HumanoidRootPart.CanCollide = true
                 end)
             end
@@ -465,7 +464,7 @@ local Button = Main3Tab:CreateButton({
    end,
 })
 
-ocal Slider = Main3Tab:CreateSlider({
+local Slider = Main3Tab:CreateSlider({
    Name = "(یا همون تنظیم دوربین)📹fov📹",
    Range = {0, 120},
    Increment = 10,
