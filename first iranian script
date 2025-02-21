@@ -330,7 +330,7 @@ local Main4Tab = Window:CreateTab("😂کرم ریختن روی پلیر ها�
 local Section = Main4Tab:CreateSection("Main4")
 
 local Button = Main4Tab:CreateButton({
-   Name = "با یه دکمه همه رو بنداز تو هوا💀fly all💀بار پشت سر هم بزن تا کار کنه 10 20",
+   Name = "با یه دکمه همه رو بنداز تو هوا💀fly all💀چند بار پشت سر هم بزن تا کار کنه ",
    Callback = function()
 local Targets = {"All"} -- "All", "Target Name", "Target name can be shortened"
  
@@ -570,7 +570,7 @@ return IsPlayerWhitelisted
 })
 
 local Button = Main4Tab:CreateButton({
-   Name = "(یه اسکریپت که به هر کی دست بزنی یارو پرت میشه تو هوا)😈touch to fly😈",
+   Name = "😈touch to fly😈(یه اسکریپت که به هرکی دست بزنی نیره تو هوا)",
    Callback = function()
 -- Touch fling gui
  
