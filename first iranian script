@@ -701,6 +701,13 @@ loadstring(game:HttpGet("https://raw.githubusercontent.com/Robloxscript-rubika/R
 })
 
 local Button = Main3Tab:CreateButton({
+   Name = "🖨اسکین های بقیه رو کپی کن🖨",
+   Callback = function()
+loadstring(game:HttpGet('https://raw.githubusercontent.com/GhostPlayer352/Test4/refs/heads/main/Copy%20Avatar'))()
+   end,
+})
+
+local Button = Main3Tab:CreateButton({
    Name = "🕳تلپرت کردن به پلیر ها🕳",
    Callback = function()
 local player = game.Players.LocalPlayer
