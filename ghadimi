@@ -1,0 +1,849 @@
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+
+local Window = Rayfield:CreateWindow({
+   Name = "OMLET HUB | by mr.omlet (join channel in rubika = @Robloxscript) ",
+   Icon = 0, -- Icon in Topbar. Can use Lucide Icons (string) or Roblox Image (number). 0 to use no icon (default).
+   LoadingTitle = "omlet hub",
+   LoadingSubtitle = "mr.omlet",
+   Theme = "Default", -- Check https://docs.sirius.menu/rayfield/configuration/themes
+
+   DisableRayfieldPrompts = false,
+   DisableBuildWarnings = false, -- Prevents Rayfield from warning when the script has a version mismatch with the interface
+
+   ConfigurationSaving = {
+      Enabled = false,
+      FolderName = nil, -- Create a custom folder for your hub/game
+      FileName = "mr.omlet hub"
+   },
+
+   Discord = {
+      Enabled = false, -- Prompt the user to join your Discord server if their executor supports it
+      Invite = "noinvitelink", -- The Discord invite code, do not include discord.gg/. E.g. discord.gg/ ABCD would be ABCD
+      RememberJoins = true -- Set this to false to make them join the discord every time they load it up
+   },
+
+   KeySystem = false, -- Set this to true to use our key system
+   KeySettings = {
+      Title = "Untitled",
+      Subtitle = "Key System",
+      Note = "No method of obtaining the key is provided", -- Use this to tell the user how to get a key
+      FileName = "Key", -- It is recommended to use something unique as other scripts using Rayfield may overwrite your key file
+      SaveKey = true, -- The user's key will be saved, but if you change the key, they will be unable to use your script
+      GrabKeyFromSite = false, -- If this is true, set Key below to the RAW site you would like Rayfield to get the key from
+      Key = {"Hello"} -- List of keys that will be accepted by the system, can be RAW file links (pastebin, github etc) or simple strings ("hello","key22")
+   }
+})
+
+local MainTab = Window:CreateTab("🔫 مخصوص بازی های شوتر🔫", nail) -- Title, Image
+local MainSection = MainTab:CreateSection("Main")
+
+Rayfield:Notify({
+   Title = "ممنون که از اسکریپت من داری استفاده میکنی",
+   Content = "(@Robloxscript)توی کانل روبیکا ما جوین بده ایدی👈",
+   Duration = 6.5,
+   Image = nail,
+})
+
+-- Check if InfiniteJumpEnabled is true and perform action accordingly
+game:GetService("UserInputService").JumpRequest:Connect(function()
+    if InfiniteJumpEnabled then
+        game:GetService("Players").LocalPlayer.Character:FindFirstChildOfClass('Humanoid'):ChangeState("Jumping")
+    end
+end)
+
+local InfiniteJumpEnabled = false  -- Variable to manage the state of the script
+
+local MainToggle = MainTab:CreateToggle({
+   Name = "(beta)⚔هیت باکس⚔",
+   CurrentValue = false,  -- Initial state of the toggle (false means off)
+   Flag = "Toggle1", -- A flag is the identifier for the configuration file
+   Callback = function(Value)
+       -- This function is triggered when the toggle is pressed
+       if Value then
+           -- Enable the script functionality
+           InfiniteJumpEnabled = true
+           print("Script enabled")
+       else
+           -- Disable the script functionality
+           InfiniteJumpEnabled = false
+           print("Script disabled")
+       end
+   end,
+})
+
+_G.HeadSize = 25
+_G.Disabled = true
+
+game:GetService('RunService').RenderStepped:connect(function()
+    if InfiniteJumpEnabled then
+        -- Only apply changes when the toggle is enabled
+        for i, v in next, game:GetService('Players'):GetPlayers() do
+            if v.Name ~= game:GetService('Players').LocalPlayer.Name then
+                pcall(function()
+                    v.Character.HumanoidRootPart.Size = Vector3.new(_G.HeadSize, _G.HeadSize, _G.HeadSize)
+                    v.Character.HumanoidRootPart.Transparency = 0.7
+                    v.Character.HumanoidRootPart.BrickColor = BrickColor.new("Really red")
+                    v.Character.HumanoidRootPart.Material = "Neon"
+                    v.Character.HumanoidRootPart.CanCollide = false
+                end)
+            end
+        end
+    else
+        -- Reset or stop the changes when the toggle is off
+        for i, v in next, game:GetService('Players'):GetPlayers() do
+            if v.Name ~= game:GetService('Players').LocalPlayer.Name then
+                pcall(function()
+                    v.Character.HumanoidRootPart.Size = Vector3.new(2, 2, 1)  -- Default size (reset)
+                    v.Character.HumanoidRootPart.Transparency = 0
+                    v.Character.HumanoidRootPart.BrickColor = BrickColor.new("gray")  -- Default color (reset)
+                    v.Character.HumanoidRootPart.Material = "plastic"  -- Default material (reset)
+                    v.Character.HumanoidRootPart.CanCollide = false
+                end)
+            end
+        end
+    end
+end)
+
+local FillColor = Color3.fromRGB(175,25,255)
+local DepthMode = "AlwaysOnTop"
+local FillTransparency = 0.5
+local OutlineColor = Color3.fromRGB(255,255,255)
+local OutlineTransparency = 0
+
+local CoreGui = game:FindService("CoreGui")
+local Players = game:FindService("Players")
+local lp = Players.LocalPlayer
+local connections = {}
+
+local Storage = Instance.new("Folder")
+Storage.Parent = CoreGui
+Storage.Name = "Highlight_Storage"
+
+local HighlightEnabled = false
+local playerAddedConnection -- This variable will store the connection object
+
+local function Highlight(plr)
+    if not HighlightEnabled then return end
+    local Highlight = Instance.new("Highlight")
+    Highlight.Name = plr.Name
+    Highlight.FillColor = FillColor
+    Highlight.DepthMode = DepthMode
+    Highlight.FillTransparency = FillTransparency
+    Highlight.OutlineColor = OutlineColor
+    Highlight.OutlineTransparency = 0
+    Highlight.Parent = Storage
+
+    local plrchar = plr.Character
+    if plrchar then
+        Highlight.Adornee = plrchar
+    end
+
+    connections[plr] = plr.CharacterAdded:Connect(function(char)
+        Highlight.Adornee = char
+    end)
+end
+
+local function ClearHighlights()
+    for _, highlight in pairs(Storage:GetChildren()) do
+        highlight:Destroy()
+    end
+    for plr, connection in pairs(connections) do
+        connection:Disconnect()
+    end
+    connections = {}
+end
+
+local Button = MainTab:CreateButton({
+   Name = "🏹ایم بات🏹",
+   Callback = function()
+  loadstring(game:HttpGet("https://raw.githubusercontent.com/Robloxscript-rubika/Robloxscript-rubika/refs/heads/main/Mobile"))()
+   end,
+})
+
+local MainTab = -- Assuming MainTab is defined earlier. If not, you need to define it.
+MainTab:CreateToggle({
+    Name = "(یه اسکریپت که پلیر هارو هایلایت میکنه)👤esp player👤",
+    CurrentValue = false,
+    Flag = "HighlightToggle",
+    Callback = function(Value)
+        HighlightEnabled = Value
+        if Value then
+            for i,v in next, Players:GetPlayers() do
+                Highlight(v)
+            end
+            playerAddedConnection = Players.PlayerAdded:Connect(Highlight) -- Store the connection
+            print("Highlight enabled")
+        else
+            ClearHighlights()
+            if playerAddedConnection then -- Check if the connection exists
+                playerAddedConnection:Disconnect() -- Disconnect using the stored connection object
+            end
+            print("Highlight disabled")
+        end
+    end,
+})
+
+Players.PlayerRemoving:Connect(function(plr)
+    if not HighlightEnabled then return end
+    local plrname = plr.Name
+    if Storage[plrname] then
+        Storage[plrname]:Destroy()
+    end
+    if connections[plr] then
+        connections[plr]:Disconnect()
+    end
+end)
+
+local Main2Tab = Window:CreateTab("⬆️سرعت⚡پرواز🚀جامپ", nail) -- Title, Image
+local Section = Main2Tab:CreateSection("Main2")
+
+local Button = Main2Tab:CreateButton({
+   Name = "🚀پرواز🚀",
+   Callback = function()
+loadstring("\108\111\97\100\115\116\114\105\110\103\40\103\97\109\101\58\72\116\116\112\71\101\116\40\40\39\104\116\116\112\115\58\47\47\103\105\115\116\46\103\105\116\104\117\98\117\115\101\114\99\111\110\116\101\110\116\46\99\111\109\47\109\101\111\122\111\110\101\89\84\47\98\102\48\51\55\100\102\102\57\102\48\97\55\48\48\49\55\51\48\52\100\100\100\54\55\102\100\99\100\51\55\48\47\114\97\119\47\101\49\52\101\55\52\102\52\50\53\98\48\54\48\100\102\53\50\51\51\52\51\99\102\51\48\98\55\56\55\48\55\52\101\98\51\99\53\100\50\47\97\114\99\101\117\115\37\50\53\50\48\120\37\50\53\50\48\102\108\121\37\50\53\50\48\50\37\50\53\50\48\111\98\102\108\117\99\97\116\111\114\39\41\44\116\114\117\101\41\41\40\41\10\10")()
+   end,
+})
+
+local Slider = Main2Tab:CreateSlider({
+   Name = "⚡سرعت⚡",
+   Range = {0, 300},
+   Increment = 1,
+   Suffix = "سرعت مدنظر",
+   CurrentValue = 16,
+   Flag = "Slider1", -- A flag is the identifier for the configuration file, make sure every element has a different flag if you're using configuration saving to ensure no overlaps
+   Callback = function(Value)
+        game.Players.LocalPlayer.Character.Humanoid.WalkSpeed = (Value)
+   end,
+})
+
+local InfiniteJumpEnabled = false  -- Variable to manage the state of the script
+
+local Slider = Main2Tab:CreateSlider({
+   Name = "💪قدرت پریدن💪",
+   Range = {0, 1000},
+   Increment = 1,
+   Suffix = "تنظیم قدرت پریدن",
+   CurrentValue = 50,
+   Flag = "Slider1", -- A flag is the identifier for the configuration file, make sure every element has a different flag if you're using configuration saving to ensure no overlaps
+   Callback = function(Value)
+   game.Players.LocalPlayer.Character.Humanoid.JumpPower = (Value)
+   end,
+})
+
+local Main4Tab = Window:CreateTab("🌠تنظیمات گرافیک بازی🌠", nail) -- Title, Image
+local Section = Main4Tab:CreateSection("Main4")
+
+local Button = Main4Tab:CreateButton({
+   Name = "(یه اسکریپت که کیفیت رو خیلی میبره بالا):💻RTX💻(فقط در گوشی کار میکنه)",
+   Callback = function()
+loadstring(game:HttpGet('https://raw.githubusercontent.com/randomstring0/pshade-ultimate/refs/heads/main/src/cd.lua'))()
+   end,
+})
+
+local Button = Main4Tab:CreateButton({
+   Name = "(یه اسکریت که کیفیت بازی رو پایین میاره)➰FPS booster➰",
+   Callback = function()
+-- Services
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local Lighting = game:GetService("Lighting")
+local Workspace = game:GetService("Workspace")
+local Settings = game:GetService("Settings")
+local RunService = game:GetService("RunService")
+
+-- Character
+local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+
+-- Graphics Settings
+Lighting.GlobalShadows = false -- Disable shadows
+Lighting.FogEnd = 9e9 -- Remove fog
+Lighting.EnvironmentSpecularScale = 0 -- Remove reflections
+
+-- Terrain
+if Workspace:FindFirstChild("Terrain") then
+  Workspace.Terrain.WaterWaveSize = 0 -- Remove water waves
+  Workspace.Terrain.WaterWaveSpeed = 0 -- Remove water wave speed
+end
+
+-- Effects
+local function DestroyEffects(object)
+  for _, child in pairs(object:GetChildren()) do
+    if child:IsA("Decal") or child:IsA("ParticleEmitter") or child:IsA("Trail") or child:IsA("Fire") or child:IsA("Smoke") then
+      child:Destroy()
+    end
+    DestroyEffects(child)
+  end
+end
+
+DestroyEffects(Workspace)
+
+-- Rendering Settings
+Settings.Rendering.QualityLevel = Enum.QualityLevel.Automatic -- Lowest quality
+Settings.Rendering.MeshPartDetailLevel = Enum.MeshPartDetailLevel.Level04 -- Lowest mesh detail
+Settings.Rendering.RenderDistance = 100 -- Very short render distance
+
+-- FPS Cap
+RunService:SetDesiredFPS(30) -- Set FPS cap to 30 (adjust as needed)
+
+-- Performance Optimization
+local function OptimizePerformance()
+  -- Reduce network usage (optional, may affect gameplay)
+  -- game:GetService("NetworkClient").MaxSendRate = 1000
+
+  -- Lower character detail (may affect appearance)
+  if Character then
+    for _, child in pairs(Character:GetChildren()) do
+      if child:IsA("MeshPart") then
+        child.RenderFidelity = Enum.RenderFidelity.Automatic
+      end
+    end
+  end
+end
+
+OptimizePerformance()
+
+-- FPS Display (optional)
+local function DisplayFPS()
+  local frame = Instance.new("Frame")
+  frame.Parent = LocalPlayer:GetPlayerGui()
+  frame.BackgroundTransparency = 1
+  frame.Size = UDim2.new(0, 100, 0, 20)
+  frame.Position = UDim2.new(0, 10, 0, 10)
+
+  local textLabel = Instance.new("TextLabel")
+  textLabel.Parent = frame
+  textLabel.BackgroundTransparency = 1
+  textLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+  textLabel.Font = Enum.Font.SourceSansBold
+  textLabel.TextSize = 14
+
+  RunService.Heartbeat:Connect(function()
+    textLabel.Text = "FPS: " .. math.floor(1 / RunService.Heartbeat:GetElapsedTime())
+  end)
+end
+
+DisplayFPS()
+   end,
+})
+
+local Main4Tab = Window:CreateTab("😂کرم ریختن روی پلیر ها😂", nail) -- Title, Image
+local Section = Main4Tab:CreateSection("Main4")
+
+local Button = Main4Tab:CreateButton({
+   Name = "با یه دکمه همه رو بنداز تو هوا💀fly all💀چند بار پشت سر هم بزن تا کار کنه ",
+   Callback = function()
+local Targets = {"All"} -- "All", "Target Name", "Target name can be shortened"
+ 
+local Players = game:GetService("Players")
+local Player = Players.LocalPlayer
+ 
+local AllBool = falseasa
+ 
+local GetPlayer = function(Name)
+    Name = Name:lower()
+    if Name == "all" or Name == "others" then
+        AllBool = true
+        return
+    elseif Name == "random" then
+        local GetPlayers = Players:GetPlayers()
+        if table.find(GetPlayers,Player) then table.remove(GetPlayers,table.find(GetPlayers,Player)) end
+        return GetPlayers[math.random(#GetPlayers)]
+    elseif Name ~= "random" and Name ~= "all" and Name ~= "others" then
+        for _,x in next, Players:GetPlayers() do
+            if x ~= Player then
+                if x.Name:lower():match("^"..Name) then
+                    return x;
+                elseif x.DisplayName:lower():match("^"..Name) then
+                    return x;
+                end
+            end
+        end
+    else
+        return
+    end
+end
+ 
+local Message = function(_Title, _Text, Time)
+    game:GetService("StarterGui"):SetCore("SendNotification", {Title = _Title, Text = _Text, Duration = Time})
+end
+ 
+local SkidFling = function(TargetPlayer)
+    local Character = Player.Character
+    local Humanoid = Character and Character:FindFirstChildOfClass("Humanoid")
+    local RootPart = Humanoid and Humanoid.RootPart
+ 
+    local TCharacter = TargetPlayer.Character
+    local THumanoid
+    local TRootPart
+    local THead
+    local Accessory
+    local Handle
+ 
+    if TCharacter:FindFirstChildOfClass("Humanoid") then
+        THumanoid = TCharacter:FindFirstChildOfClass("Humanoid")
+    end
+    if THumanoid and THumanoid.RootPart then
+        TRootPart = THumanoid.RootPart
+    end
+    if TCharacter:FindFirstChild("Head") then
+        THead = TCharacter.Head
+    end
+    if TCharacter:FindFirstChildOfClass("Accessory") then
+        Accessory = TCharacter:FindFirstChildOfClass("Accessory")
+    end
+    if Accessoy and Accessory:FindFirstChild("Handle") then
+        Handle = Accessory.Handle
+    end
+ 
+    if Character and Humanoid and RootPart then
+        if RootPart.Velocity.Magnitude < 50 then
+            getgenv().OldPos = RootPart.CFrame
+        end
+        if THumanoid and THumanoid.Sit and not AllBool then
+            return Message("Error Occurred", "Targeting is sitting", 5) -- u can remove dis part if u want lol
+        end
+        if THead then
+            workspace.CurrentCamera.CameraSubject = THead
+        elseif not THead and Handle then
+            workspace.CurrentCamera.CameraSubject = Handle
+        elseif THumanoid and TRootPart then
+            workspace.CurrentCamera.CameraSubject = THumanoid
+        end
+        if not TCharacter:FindFirstChildWhichIsA("BasePart") then
+            return
+        end
+ 
+        local FPos = function(BasePart, Pos, Ang)
+            RootPart.CFrame = CFrame.new(BasePart.Position) * Pos * Ang
+            Character:SetPrimaryPartCFrame(CFrame.new(BasePart.Position) * Pos * Ang)
+            RootPart.Velocity = Vector3.new(9e7, 9e7 * 10, 9e7)
+            RootPart.RotVelocity = Vector3.new(9e8, 9e8, 9e8)
+        end
+ 
+        local SFBasePart = function(BasePart)
+            local TimeToWait = 0.1
+            local Time = tick()
+            local Angle = 0
+ 
+            repeat
+                if RootPart and THumanoid then
+                    if BasePart.Velocity.Magnitude < 50 then
+                        Angle = Angle + 100
+ 
+                        FPos(BasePart, CFrame.new(0, 1.5, 0) + THumanoid.MoveDirection * BasePart.Velocity.Magnitude / 1.25, CFrame.Angles(math.rad(Angle),0 ,0))
+                        task.wait()
+ 
+                        FPos(BasePart, CFrame.new(0, -1.5, 0) + THumanoid.MoveDirection * BasePart.Velocity.Magnitude / 1.25, CFrame.Angles(math.rad(Angle), 0, 0))
+                        task.wait()
+ 
+                        FPos(BasePart, CFrame.new(2.25, 1.5, -2.25) + THumanoid.MoveDirection * BasePart.Velocity.Magnitude / 1.25, CFrame.Angles(math.rad(Angle), 0, 0))
+                        task.wait()
+ 
+                        FPos(BasePart, CFrame.new(-2.25, -1.5, 2.25) + THumanoid.MoveDirection * BasePart.Velocity.Magnitude / 1.25, CFrame.Angles(math.rad(Angle), 0, 0))
+                        task.wait()
+ 
+                        FPos(BasePart, CFrame.new(0, 1.5, 0) + THumanoid.MoveDirection,CFrame.Angles(math.rad(Angle), 0, 0))
+                        task.wait()
+ 
+                        FPos(BasePart, CFrame.new(0, -1.5, 0) + THumanoid.MoveDirection,CFrame.Angles(math.rad(Angle), 0, 0))
+                        task.wait()
+                    else
+                        FPos(BasePart, CFrame.new(0, 1.5, THumanoid.WalkSpeed), CFrame.Angles(math.rad(90), 0, 0))
+                        task.wait()
+ 
+                        FPos(BasePart, CFrame.new(0, -1.5, -THumanoid.WalkSpeed), CFrame.Angles(0, 0, 0))
+                        task.wait()
+ 
+                        FPos(BasePart, CFrame.new(0, 1.5, THumanoid.WalkSpeed), CFrame.Angles(math.rad(90), 0, 0))
+                        task.wait()
+ 
+                        FPos(BasePart, CFrame.new(0, 1.5, TRootPart.Velocity.Magnitude / 1.25), CFrame.Angles(math.rad(90), 0, 0))
+                        task.wait()
+ 
+                        FPos(BasePart, CFrame.new(0, -1.5, -TRootPart.Velocity.Magnitude / 1.25), CFrame.Angles(0, 0, 0))
+                        task.wait()
+ 
+                        FPos(BasePart, CFrame.new(0, 1.5, TRootPart.Velocity.Magnitude / 1.25), CFrame.Angles(math.rad(90), 0, 0))
+                        task.wait()
+ 
+                        FPos(BasePart, CFrame.new(0, -1.5, 0), CFrame.Angles(math.rad(90), 0, 0))
+                        task.wait()
+ 
+                        FPos(BasePart, CFrame.new(0, -1.5, 0), CFrame.Angles(0, 0, 0))
+                        task.wait()
+ 
+                        FPos(BasePart, CFrame.new(0, -1.5 ,0), CFrame.Angles(math.rad(-90), 0, 0))
+                        task.wait()
+ 
+                        FPos(BasePart, CFrame.new(0, -1.5, 0), CFrame.Angles(0, 0, 0))
+                        task.wait()
+                    end
+                else
+                    break
+                end
+            until BasePart.Velocity.Magnitude > 500 or BasePart.Parent ~= TargetPlayer.Character or TargetPlayer.Parent ~= Players or not TargetPlayer.Character == TCharacter or THumanoid.Sit or Humanoid.Health <= 0 or tick() > Time + TimeToWait
+        end
+ 
+        workspace.FallenPartsDestroyHeight = 0/0
+ 
+        local BV = Instance.new("BodyVelocity")
+        BV.Name = "EpixVel"
+        BV.Parent = RootPart
+        BV.Velocity = Vector3.new(9e8, 9e8, 9e8)
+        BV.MaxForce = Vector3.new(1/0, 1/0, 1/0)
+ 
+        Humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated, false)
+ 
+        if TRootPart and THead then
+            if (TRootPart.CFrame.p - THead.CFrame.p).Magnitude > 5 then
+                SFBasePart(THead)
+            else
+                SFBasePart(TRootPart)
+            end
+        elseif TRootPart and not THead then
+            SFBasePart(TRootPart)
+        elseif not TRootPart and THead then
+            SFBasePart(THead)
+        elseif not TRootPart and not THead and Accessory and Handle then
+            SFBasePart(Handle)
+        else
+            return Message("Error Occurred", "Target is missing everything", 5)
+        end
+ 
+        BV:Destroy()
+        Humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated, true)
+        workspace.CurrentCamera.CameraSubject = Humanoid
+ 
+        repeat
+            RootPart.CFrame = getgenv().OldPos * CFrame.new(0, .5, 0)
+            Character:SetPrimaryPartCFrame(getgenv().OldPos * CFrame.new(0, .5, 0))
+            Humanoid:ChangeState("GettingUp")
+            table.foreach(Character:GetChildren(), function(_, x)
+                if x:IsA("BasePart") then
+                    x.Velocity, x.RotVelocity = Vector3.new(), Vector3.new()
+                end
+            end)
+            task.wait()
+        until (RootPart.Position - getgenv().OldPos.p).Magnitude < 25
+        workspace.FallenPartsDestroyHeight = getgenv().FPDH
+    else
+        return Message("Error Occurred", "Random error", 5)
+    end
+end
+ 
+if not Welcome then Message(" script by mr.omlet", "حال کن!", 5) end
+getgenv().Welcome = flase
+if Targets[1] then for _,x in next, Targets do GetPlayer(x) end else return end
+ 
+if AllBool then
+    for _,x in next, Players:GetPlayers() do
+        SkidFling(x)
+    end
+end
+ 
+for _,x in next, Targets do
+    if GetPlayer(x) and GetPlayer(x) ~= Player then
+        if GetPlayer(x).UserId ~= 1414978355 then
+            local TPlayer = GetPlayer(x)
+            if TPlayer then
+                SkidFling(TPlayer)
+            end
+        else
+            Message("Error Occurred", "This user is whitelisted! (Owner)", 5)
+        end
+    elseif not GetPlayer(x) and not AllBool then
+        Message("Error Occurred", "Username Invalid", 5)
+    end
+end
+local WhitelistedPlayers = {
+    [123456789] = true, -- Replace with the actual UserId of whitelisted players
+    [987654321] = true,
+}
+
+local function IsPlayerWhitelisted(player)
+    local userId = player.UserId
+    return WhitelistedPlayers[userId] or false
+end
+
+return IsPlayerWhitelisted
+   end,
+})
+
+local Button = Main4Tab:CreateButton({
+   Name = "😈touch to fly😈(یه اسکریپت که به هرکی دست بزنی نیره تو هوا)",
+   Callback = function()
+-- Touch fling gui
+ 
+-- Gui to Lua (VIP VERSION)
+-- Version: 6.9
+ 
+-- Instances:
+ 
+local ScreenGui = Instance.new("ScreenGui")
+local Frame = Instance.new("Frame")
+local Frame_2 = Instance.new("Frame")
+local TextLabel = Instance.new("TextLabel")
+local TextButton = Instance.new("TextButton")
+ 
+--Properties:
+ 
+ScreenGui.Parent = game.Players.LocalPlayer:WaitForChild("PlayerGui")
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+ScreenGui.ResetOnSpawn = false
+ 
+Frame.Parent = ScreenGui
+Frame.BackgroundColor3 = Color3.fromRGB(34, 34, 34)
+Frame.BorderColor3 = Color3.fromRGB(0, 0, 0)
+Frame.BorderSizePixel = 0
+Frame.Position = UDim2.new(0.388539821, 0, 0.427821517, 0)
+Frame.Size = UDim2.new(0, 158, 0, 110)
+ 
+Frame_2.Parent = Frame
+Frame_2.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+Frame_2.BorderColor3 = Color3.fromRGB(0, 0, 0)
+Frame_2.BorderSizePixel = 0
+Frame_2.Size = UDim2.new(0, 158, 0, 25)
+ 
+TextLabel.Parent = Frame_2
+TextLabel.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+TextLabel.BackgroundTransparency = 1.000
+TextLabel.BorderColor3 = Color3.fromRGB(0, 0, 0)
+TextLabel.BorderSizePixel = 0
+TextLabel.Position = UDim2.new(0.112792775, 0, -0.0151660154, 0)
+TextLabel.Size = UDim2.new(0, 121, 0, 26)
+TextLabel.Font = Enum.Font.Sarpanch
+TextLabel.Text = "Touch Fling"
+TextLabel.TextColor3 = Color3.fromRGB(0, 0, 255)
+TextLabel.TextSize = 25.000
+ 
+TextButton.Parent = Frame
+TextButton.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+TextButton.BorderColor3 = Color3.fromRGB(0, 0, 0)
+TextButton.BorderSizePixel = 0
+TextButton.Position = UDim2.new(0.113924049, 0, 0.418181807, 0)
+TextButton.Size = UDim2.new(0, 121, 0, 37)
+TextButton.Font = Enum.Font.SourceSansItalic
+TextButton.Text = "OFF"
+TextButton.TextColor3 = Color3.fromRGB(0, 0, 0)
+TextButton.TextSize = 20.000
+ 
+-- Scripts:
+ 
+local function IIMAWH_fake_script() -- TextButton.LocalScript 
+	local script = Instance.new('LocalScript', TextButton)
+ 
+	local ReplicatedStorage = game:GetService("ReplicatedStorage")
+	local RunService = game:GetService("RunService")
+	local Players = game:GetService("Players")
+ 
+	local toggleButton = script.Parent
+	local hiddenfling = false
+	local flingThread 
+	if not ReplicatedStorage:FindFirstChild("juisdfj0i32i0eidsuf0iok") then
+		local detection = Instance.new("Decal")
+		detection.Name = "juisdfj0i32i0eidsuf0iok"
+		detection.Parent = ReplicatedStorage
+	end
+ 
+	local function fling()
+		local lp = Players.LocalPlayer
+		local c, hrp, vel, movel = nil, nil, nil, 0.1
+ 
+		while hiddenfling do
+			RunService.Heartbeat:Wait()
+			c = lp.Character
+			hrp = c and c:FindFirstChild("HumanoidRootPart")
+ 
+			if hrp then
+				vel = hrp.Velocity
+				hrp.Velocity = vel * 10000 + Vector3.new(0, 10000, 0)
+				RunService.RenderStepped:Wait()
+				hrp.Velocity = vel
+				RunService.Stepped:Wait()
+				hrp.Velocity = vel + Vector3.new(0, movel, 0)
+				movel = -movel
+			end
+		end
+	end
+ 
+	toggleButton.MouseButton1Click:Connect(function()
+		hiddenfling = not hiddenfling
+		toggleButton.Text = hiddenfling and "ON" or "OFF"
+ 
+		if hiddenfling then
+			flingThread = coroutine.create(fling)
+			coroutine.resume(flingThread)
+		else
+			hiddenfling = false
+		end
+	end)
+ 
+end
+coroutine.wrap(IIMAWH_fake_script)()
+local function QCJQJL_fake_script() -- Frame.LocalScript 
+	local script = Instance.new('LocalScript', Frame)
+ 
+	script.Parent.Active = true
+	script.Parent.Draggable = true
+end
+coroutine.wrap(QCJQJL_fake_script)()
+   end,
+})
+
+local Main3Tab = Window:CreateTab("🎲بیشتر", nail) -- Title, Image
+local Section = Main3Tab:CreateSection("Main3")
+
+local Button = Main3Tab:CreateButton({
+   Name = "(یه اسکریپت که از دیوار ها رد میشه)🧱noclip🧱",
+   Callback = function()
+loadstring(game:HttpGet("https://raw.githubusercontent.com/Robloxscript-rubika/Robloxscript-rubika/refs/heads/main/Roblox%20script" ))()
+   end,
+})
+
+local Button = Main3Tab:CreateButton({
+   Name = "🖨اسکین های بقیه رو کپی کن🖨",
+   Callback = function()
+loadstring(game:HttpGet('https://raw.githubusercontent.com/GhostPlayer352/Test4/refs/heads/main/Copy%20Avatar'))()
+   end,
+})
+
+local Button = Main3Tab:CreateButton({
+   Name = "🕳تلپرت کردن به پلیر ها🕳",
+   Callback = function()
+local player = game.Players.LocalPlayer
+local teleportGui = Instance.new("ScreenGui")
+local mainFrame = Instance.new("Frame")
+local titleLabel = Instance.new("TextLabel")
+local closeButton = Instance.new("TextButton")
+local playerListFrame = Instance.new("ScrollingFrame")
+
+
+
+teleportGui.Name = "TeleportGui"
+teleportGui.Parent = player.PlayerGui
+
+mainFrame.Name = "MainFrame"
+mainFrame.Parent = teleportGui
+mainFrame.BackgroundColor3 = Color3.new(0.2, 0.2, 0.2)
+mainFrame.BorderSizePixel = 0
+mainFrame.Position = UDim2.new(0.5, -150, 0.5, -100)
+mainFrame.Size = UDim2.new(0, 300, 0, 200)
+mainFrame.Active = true
+mainFrame.Draggable = true -- Permet de dÃ:copyright:placer le GUI avec la souris
+
+titleLabel.Name = "TitleLabel"
+titleLabel.Parent = mainFrame
+titleLabel.BackgroundColor3 = Color3.new(0.4, 0.4, 0.4)
+titleLabel.BorderSizePixel = 0
+titleLabel.Size = UDim2.new(1, 0, 0, 30)
+titleLabel.Font = Enum.Font.SourceSansBold
+titleLabel.Text = "Tp Gui /mr.omlet"
+titleLabel.TextColor3 = Color3.new(1, 1, 1)
+titleLabel.TextSize = 20
+
+closeButton.Name = "CloseButton"
+closeButton.Parent = mainFrame
+closeButton.BackgroundColor3 = Color3.new(0.8, 0, 0)
+closeButton.BorderSizePixel = 0
+closeButton.Position = UDim2.new(1, -30, 0, 0)
+closeButton.Size = UDim2.new(0, 30, 0, 30)
+closeButton.Font = Enum.Font.SourceSansBold
+closeButton.Text = "X"
+closeButton.TextColor3 = Color3.new(1, 1, 1)
+closeButton.TextSize = 20
+
+playerListFrame.Name = "PlayerListFrame"
+playerListFrame.Parent = mainFrame
+playerListFrame.BackgroundColor3 = Color3.new(0.4, 0.4, 0.4)
+playerListFrame.BorderSizePixel = 0
+playerListFrame.Position = UDim2.new(0, 20, 0, 40)
+playerListFrame.Size = UDim2.new(0, 260, 0, 140)
+playerListFrame.ScrollBarThickness = 6
+
+-- Fonction de crÃ:copyright:ation des boutons de joueur
+
+local function createPlayerButton(playerName)
+    local playerButton = Instance.new("TextButton")
+    playerButton.Name = playerName
+    playerButton.Parent = playerListFrame
+    playerButton.BackgroundColor3 = Color3.new(0.6, 0.6, 0.6)
+    playerButton.BorderSizePixel = 0
+    playerButton.Size = UDim2.new(0, 240, 0, 30)
+    playerButton.Position = UDim2.new(0, 10, 0, (#playerListFrame:GetChildren() - 1) * 35)
+    playerButton.Font = Enum.Font.SourceSans
+    playerButton.Text = playerName
+    playerButton.TextColor3 = Color3.new(0, 0, 0)
+    playerButton.TextSize = 16
+
+    -- Gestionnaire d'Ã:copyright:vÃ:copyright:nement lors du clic sur le bouton joueur
+    playerButton.MouseButton1Click:Connect(function()
+        local targetPlayer = game.Players:FindFirstChild(playerName)
+        if targetPlayer then
+            player.Character.HumanoidRootPart.CFrame = targetPlayer.Character.HumanoidRootPart.CFrame
+        else
+            print("Player not found!")
+        end
+    end)
+end
+
+-- CrÃ:copyright:ation des boutons de joueur pour tous les joueurs prÃ:copyright:sents dans le jeu
+
+for _, otherPlayer in ipairs(game.Players:GetPlayers()) do
+    if otherPlayer ~= player then
+        createPlayerButton(otherPlayer.Name)
+    end
+end
+
+-- Gestionnaire d'Ã:copyright:vÃ:copyright:nement lors du clic sur le bouton de fermeture
+
+closeButton.MouseButton1Click:Connect(function()
+    teleportGui:Destroy()
+end)
+
+-- Gestion du dÃ:copyright:placement du GUI
+
+local dragging = false
+local dragStartPos = nil
+
+mainFrame.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragging = true
+        dragStartPos = input.Position - mainFrame.Position
+        mainFrame.Draggable = false -- DÃ:copyright:sactive le dÃ:copyright:placement intÃ:copyright:grÃ:copyright: pour Ã:copyright:viter les conflits
+    end
+end)
+
+game:GetService("UserInputService").InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement and dragging then
+        mainFrame.Position = input.Position - dragStartPos
+    end
+end)
+
+game:GetService("UserInputService").InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragging = false
+        mainFrame.Draggable = true -- RÃ:copyright:active le dÃ:copyright:placement intÃ:copyright:grÃ:copyright:
+    end
+end)
+   end,
+})
+
+local Button = Main3Tab:CreateButton({
+   Name = "ANTI AFK🤖",
+   Callback = function()
+   loadstring(game:HttpGet("https://raw.githubusercontent.com/Robloxscript-rubika/Robloxscript-rubika/refs/heads/main/Roblox-script-by-mr.omlet"))()
+   end,
+})
+
+local Slider = Main3Tab:CreateSlider({
+   Name = "(یا همون تنظیم دوربین)📹fov📹",
+   Range = {0, 120},
+   Increment = 10,
+   Suffix = "تنظیم fov",
+   CurrentValue = 90,
+   Flag = "Slider1", -- A flag is the identifier for the configuration file, make sure every element has a different flag if you're using configuration saving to ensure no overlaps
+   Callback = function(Value)
+   local camera = workspace.CurrentCamera
+   camera.FieldOfView = (Value)
+   end,
+})
