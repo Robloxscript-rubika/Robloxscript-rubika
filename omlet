@@ -1,0 +1,48 @@
+local redzlib = loadstring(game:HttpGet("https://raw.githubusercontent.com/tbao143/Library-ui/refs/heads/main/Redzhubui"))()
+
+local Window = redzlib:MakeWindow({
+  Title = "omlet hub : Blox Fruits",
+  SubTitle = "by omlet",
+  SaveFolder = "testando | redz lib v5.lua"
+})
+
+local omletTab = Window:MakeTab({"fly", "sword"})
+local Section = omletTab:AddSection({"fly"})
+
+local Toggle1 = omletTab:AddToggle({
+  Name = "esp",
+  Description = "This is a <font color='rgb(88, 101, 242)'>Toggle</font> Example",
+  Default = false 
+})
+Toggle1:Callback(function(Value)
+print(2)
+end)
+
+omletTab:AddButton({"aimbot", function(Value)
+ loadstring(game:HttpGet("https://raw.githubusercontent.com/Robloxscript-rubika/Robloxscript-rubika/refs/heads/main/Mobile"))()
+end})
+
+local Paragraph = omletTab:AddParagraph({"سازنده", "omlet"})
+
+omletTab:AddSlider({
+  Name = "Speed",
+  Min = 1,
+  Max = 1000,
+  Increase = 1,
+  Default = 16,
+  Callback = function(Value)
+  game.Players.LocalPlayer.Character.Humanoid.WalkSpeed = (Value)
+  end
+})
+
+omletTab:AddDiscordInvite({
+    Name = "roblox script",
+    Description = "Join server",
+    Logo = "rbxassetid://129990499077515",
+    Invite = "https://web.rubika.ir/#c=c0C1jsU005ac0cfa29926cd912dc78d2",
+})
+
+Window:AddMinimizeButton({
+    Button = { Image = "rbxassetid://129990499077515", BackgroundTransparency = 0 },
+    Corner = { CornerRadius = UDim.new(35, 1) },
+})
