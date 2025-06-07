@@ -1,0 +1,147 @@
+-- Load UI
+local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
+
+local Window = WindUI:CreateWindow({
+    Title = "UI Title",
+    Icon = "door-open",
+    Author = "Example UI",
+    Folder = "CloudHub",
+    Size = UDim2.fromOffset(580, 460),
+    Transparent = true,
+    Theme = "Dark",
+    SideBarWidth = 200,
+    Background = "",
+    BackgroundImageTransparency = 0.42,
+    HideSearchBar = true,
+    ScrollBarEnabled = false,
+    User = {
+        Enabled = true,
+        Anonymous = true,
+        Callback = function()
+            print("clicked")
+        end,
+    },
+})
+
+local Tab = Window:Tab({
+    Title = "omletttt",
+    Icon = "bird",
+    Locked = false,
+})
+
+local Section = Tab:Section({ 
+    Title = "auto buy",
+    TextXAlignment = "Left",
+    TextSize = 17,
+})
+
+-- Game Setup
+local Players = game:GetService("Players")
+local MarketplaceService = game:GetService("MarketplaceService")
+local GameEvents = game:GetService("ReplicatedStorage"):WaitForChild("RemoteEvents")
+
+local player = Players.LocalPlayer
+local SeedStock = {}
+local SelectedSeeds = {}
+local OnlyShowStock = false
+local AutoBuy = false
+
+-- Functions
+local function BuySeed(Seed: string)
+	GameEvents.BuySeedStock:FireServer(Seed)
+end
+
+local function BuyAllSelectedSeeds()
+	for _, Seed in ipairs(SelectedSeeds) do
+		local Stock = SeedStock[Seed]
+		if not Stock or Stock <= 0 then continue end
+		for i = 1, Stock do
+			BuySeed(Seed)
+		end
+	end
+end
+
+local function GetSeedInfo(Seed: Tool)
+	local PlantName = Seed:FindFirstChild("Plant_Name")
+	local Count = Seed:FindFirstChild("Numbers")
+	if not PlantName then return end
+	return PlantName.Value, Count.Value
+end
+
+local function CollectSeedsFromParent(Parent, Seeds: table)
+	for _, Tool in next, Parent:GetChildren() do
+		local Name, Count = GetSeedInfo(Tool)
+		if not Name then continue end
+		Seeds[Name] = {
+			Count = Count,
+			Tool = Tool
+		}
+	end
+end
+
+local function GetSeedStock(OnlyStock)
+	SeedStock = {}
+	local backpack = player:WaitForChild("Backpack")
+	CollectSeedsFromParent(backpack, SeedStock)
+	local SeedNames = {}
+	for name, data in pairs(SeedStock) do
+		if OnlyStock and data.Count <= 0 then continue end
+		table.insert(SeedNames, name)
+	end
+	table.sort(SeedNames)
+	return SeedNames
+end
+
+-- UI Elements
+local Dropdown = Tab:Dropdown({
+    Title = "Select Seeds",
+    Values = GetSeedStock(OnlyShowStock),
+    Value = {},
+    Multi = true,
+    AllowNone = true,
+    Callback = function(option)
+        SelectedSeeds = option
+    end,
+})
+
+local ToggleAutoBuy = Tab:Toggle({
+    Title = "Auto Buy",
+    Desc = "Automatically buy all selected seeds",
+    Icon = "bird",
+    Type = "Checkbox",
+    Default = false,
+    Callback = function(state)
+        AutoBuy = state
+    end
+})
+
+local ToggleStockOnly = Tab:Toggle({
+    Title = "Only Show Stock",
+    Desc = "Show only seeds with stock > 0",
+    Icon = "bird",
+    Type = "Checkbox",
+    Default = false,
+    Callback = function(state)
+        OnlyShowStock = state
+        Dropdown:Refresh({
+            Values = GetSeedStock(state)
+        })
+    end
+})
+
+local ButtonBuyAll = Tab:Button({
+    Title = "Buy All Now",
+    Desc = "Buy all selected seeds manually",
+    Locked = false,
+    Callback = BuyAllSelectedSeeds,
+})
+
+-- Auto Buy Loop
+task.spawn(function()
+	while true do
+		task.wait(1)
+		if AutoBuy then
+			BuyAllSelectedSeeds()
+		end
+	end
+end)
