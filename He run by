@@ -1,0 +1,165 @@
+local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local LocalPlayer = Players.LocalPlayer
+local RunService = game:GetService("RunService")
+
+local AutoCollect = false
+local AutoSellEnabled = false
+local IsSelling = false
+
+-- WindUI Base
+local Window = WindUI:CreateWindow({
+    Title = "Fruit Auto Collect",
+    Icon = "apple",
+    Author = "ravosh901",
+    Folder = "FruitCollector",
+    Size = UDim2.new(0, 300, 0, 250),
+    Transparent = true,
+    Theme = "Dark",
+    SideBarWidth = 200,
+    BackgroundImageTransparency = 0.42,
+    HideSearchBar = true,
+    ScrollBarEnabled = false,
+    Position = UDim2.new(0.5, 0, 0.5, 0),
+    AnchorPoint = Vector2.new(0.5, 0.5),
+    User = {
+        Enabled = true,
+        Anonymous = true,
+        Callback = function()
+            print("clicked")
+        end,
+    },
+})
+
+local Tab = Window:Tab({
+    Title = "Auto Farm",
+    Icon = "tree",
+    Locked = false,
+})
+
+local Section = Tab:Section({
+    Title = "Auto Collect Fruits",
+    TextXAlignment = "Left",
+    TextSize = 17,
+})
+
+Tab:Toggle({
+    Title = "Auto Collect",
+    Desc = "Collects ripe fruits in your own farm",
+    Icon = "check",
+    Type = "Checkbox",
+    Default = false,
+    Callback = function(state)
+        AutoCollect = state
+    end
+})
+
+Tab:Toggle({
+    Title = "Auto Sell",
+    Desc = "Sell crops automatically when inventory is full",
+    Icon = "shopping-cart",
+    Type = "Checkbox",
+    Default = false,
+    Callback = function(state)
+        AutoSellEnabled = state
+    end
+})
+
+-- تابع دریافت Promptهای نزدیک
+local function GetNearbyPrompts(radius)
+	local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+	if not hrp then return {} end
+	local region = Region3.new(hrp.Position - Vector3.new(radius, 10, radius), hrp.Position + Vector3.new(radius, 10, radius))
+	return workspace:FindPartsInRegion3(region, nil, math.huge)
+end
+
+-- حلقه Auto Collect
+task.spawn(function()
+	while true do
+		task.wait(0.1)
+		if AutoCollect and not IsSelling then
+			local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+			if hrp then
+				local parts = GetNearbyPrompts(60)
+				for _, part in pairs(parts) do
+					for _, prompt in pairs(part:GetDescendants()) do
+						if prompt:IsA("ProximityPrompt") and prompt.Enabled and prompt.ActionText == "Collect" then
+							hrp.CFrame = CFrame.new(prompt.Parent.Position + Vector3.new(0, 3, 0))
+							task.wait(0.1)
+							fireproximityprompt(prompt)
+						end
+					end
+				end
+			end
+		end
+	end
+end)
+
+-- دریافت لیست Crops در Inventory
+local function GetInvCrops()
+    local Backpack = LocalPlayer:WaitForChild("Backpack")
+    local Character = LocalPlayer.Character
+    local Crops = {}
+
+    local function CollectFrom(parent)
+        for _, Tool in ipairs(parent:GetChildren()) do
+            if Tool:FindFirstChild("Item_String") then
+                table.insert(Crops, Tool)
+            end
+        end
+    end
+
+    CollectFrom(Backpack)
+    if Character then
+        CollectFrom(Character)
+    end
+
+    return Crops
+end
+
+-- تلپورت امن
+local function SafeTeleport(cf)
+    local char = LocalPlayer.Character
+    if char then
+        char:PivotTo(cf)
+    end
+end
+
+-- تابع اصلی Auto Sell
+local function SellInventory()
+    if IsSelling then return end
+    IsSelling = true
+
+    AutoCollect = false -- قطع AutoCollect
+    task.wait(0.2)      -- صبر قبل تلپورت
+    SafeTeleport(CFrame.new(62, 4, -26)) -- تلپورت به محل فروش
+
+    local Leaderstats = LocalPlayer:WaitForChild("leaderstats")
+    local ShecklesCount = Leaderstats:WaitForChild("Sheckles")
+    local GameEvents = ReplicatedStorage:WaitForChild("GameEvents")
+
+    local Prev = ShecklesCount.Value
+    while task.wait(0.2) do
+        GameEvents.Sell_Inventory:FireServer()
+        if ShecklesCount.Value ~= Prev then break end
+    end
+
+    task.wait(0.2)
+    AutoCollect = true -- بازگردانی AutoCollect
+    IsSelling = false
+end
+
+-- حلقه بررسی برای Auto Sell
+task.spawn(function()
+    while true do
+        task.wait(2)
+        if AutoSellEnabled and not IsSelling then
+            local crops = GetInvCrops()
+            if #crops >= 2 then
+                SellInventory()
+            end
+        end
+    end
+end)
