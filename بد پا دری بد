@@ -1,0 +1,132 @@
+local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
+
+local Window = WindUI:CreateWindow({
+    Title = "UI Title",
+    Icon = "door-open",
+    Author = "Example UI",
+    Folder = "CloudHub",
+    Size = UDim2.fromOffset(580, 460),
+    Transparent = true,
+    Theme = "Dark",
+    SideBarWidth = 200,
+    Background = "",
+    BackgroundImageTransparency = 0.42,
+    HideSearchBar = true,
+    ScrollBarEnabled = false,
+    User = {
+        Enabled = true,
+        Anonymous = true,
+        Callback = function()
+            print("clicked")
+        end,
+    },
+})
+
+local Tab = Window:Tab({
+    Title = "omletttt",
+    Icon = "bird",
+    Locked = false,
+})
+
+local Section = Tab:Section({ 
+    Title = "auto sell",
+    TextXAlignment = "Left",
+    TextSize = 17,
+})
+
+-- متغیر وضعیت اوتو سل
+local AutoSellEnabled = false
+
+local Toggle = Section:Toggle({
+    Title = "Auto Sell",
+    Desc = "Turn on/off auto selling when inventory is full",
+    Icon = "shopping-cart",
+    Type = "Checkbox",
+    Default = false,
+    Callback = function(state)
+        AutoSellEnabled = state
+        print("Auto Sell is now", state and "Enabled" or "Disabled")
+    end
+})
+
+-- اسلایدر برای تعیین حد آستانه فروش
+local SellThreshold = 2
+
+Section:Slider({
+    Title = "Sell Threshold",
+    Desc = "Minimum crop count before selling",
+    Min = 1,
+    Max = 260,
+    Default = SellThreshold,
+    Suffix = " fruits",
+    Callback = function(value)
+        SellThreshold = value
+        print("SellThreshold set to", value)
+    end
+})
+
+-- توابع و متغیرهای لازم برای اوتو سل
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local LocalPlayer = Players.LocalPlayer
+local Leaderstats = LocalPlayer:WaitForChild("leaderstats")
+local ShecklesCount = Leaderstats:WaitForChild("Sheckles")
+local GameEvents = ReplicatedStorage:WaitForChild("GameEvents")
+
+local IsSelling = false
+
+local function SellInventory()
+    if IsSelling then return end
+    IsSelling = true
+
+    local Character = LocalPlayer.Character
+    if not Character then IsSelling = false return end
+    local Previous = Character:GetPivot()
+
+    local PreviousSheckles = ShecklesCount.Value
+
+    Character:PivotTo(CFrame.new(62, 4, -26)) -- موقعیت فروش
+
+    while task.wait() do
+        if ShecklesCount.Value ~= PreviousSheckles then break end
+        GameEvents.Sell_Inventory:FireServer()
+    end
+
+    Character:PivotTo(Previous)
+    task.wait(0.2)
+    IsSelling = false
+end
+
+local function GetInvCrops()
+    local Backpack = LocalPlayer:WaitForChild("Backpack")
+    local Character = LocalPlayer.Character
+    local Crops = {}
+
+    local function CollectCropsFromParent(Parent)
+        for _, Tool in next, Parent:GetChildren() do
+            if Tool:FindFirstChild("Item_String") then
+                table.insert(Crops, Tool)
+            end
+        end
+    end
+
+    CollectCropsFromParent(Backpack)
+    if Character then
+        CollectCropsFromParent(Character)
+    end
+
+    return Crops
+end
+
+-- حلقه بررسی اتو سل
+task.spawn(function()
+    while task.wait(2) do
+        if AutoSellEnabled then
+            local CropCount = #GetInvCrops()
+            if CropCount >= SellThreshold then
+                SellInventory()
+            end
+        end
+    end
+end)
