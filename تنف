@@ -1,0 +1,84 @@
+local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
+
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local RunService = game:GetService("RunService")
+
+local AutoCollect = false
+
+local Window = WindUI:CreateWindow({
+    Title = "UI Title",
+    Icon = "door-open",
+    Author = "Example UI",
+    Folder = "CloudHub",
+    Size = UDim2.new(0, 300, 0, 250), -- مناسب موبایل
+    Transparent = true,
+    Theme = "Dark",
+    SideBarWidth = 200,
+    Background = "", -- rbxassetid only
+    BackgroundImageTransparency = 0.42,
+    HideSearchBar = true,
+    ScrollBarEnabled = false,
+    Position = UDim2.new(0.5, 0, 0.5, 0), -- وسط صفحه
+    AnchorPoint = Vector2.new(0.5, 0.5), -- مرکز رو به عنوان نقطه تکیه تنظیم کن
+    User = {
+        Enabled = true,
+        Anonymous = true,
+        Callback = function()
+            print("clicked")
+        end,
+    },
+})
+
+local Tab = Window:Tab({
+    Title = "Auto Farm",
+    Icon = "tree",
+    Locked = false,
+})
+
+local Section = Tab:Section({ 
+    Title = "Auto Collect Fruits",
+    TextXAlignment = "Left",
+    TextSize = 17,
+})
+
+local Toggle = Tab:Toggle({
+    Title = "Auto Collect",
+    Desc = "Collects ripe fruits in your own farm",
+    Icon = "check",
+    Type = "Checkbox",
+    Default = false,
+    Callback = function(state)
+        AutoCollect = state
+    end
+})
+
+-- منطقه بزرگ‌تری برای بررسی Promptها
+local function GetNearbyPrompts(radius)
+	local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+	if not hrp then return {} end
+	local region = Region3.new(hrp.Position - Vector3.new(radius, 10, radius), hrp.Position + Vector3.new(radius, 10, radius))
+	return workspace:FindPartsInRegion3(region, nil, math.huge)
+end
+
+-- حلقه اصلی Auto Collect
+task.spawn(function()
+	while true do
+		task.wait(0.1)
+		if AutoCollect then
+			local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+			if hrp then
+				local parts = GetNearbyPrompts(60) -- قبلاً کوچیک‌تر بود، حالا کل مزرعه رو پوشش میده
+				for _, part in pairs(parts) do
+					for _, prompt in pairs(part:GetDescendants()) do
+						if prompt:IsA("ProximityPrompt") and prompt.Enabled and prompt.ActionText == "Collect" then
+							hrp.CFrame = CFrame.new(prompt.Parent.Position + Vector3.new(0, 3, 0))
+							task.wait(0.1) -- ← زمان بیشتر برای دقیق collect زدن
+							fireproximityprompt(prompt)
+						end
+					end
+				end
+			end
+		end
+	end
+end)
