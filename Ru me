@@ -1,0 +1,155 @@
+-- لود WindUI
+local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
+
+-- ساخت پنجره
+local Window = WindUI:CreateWindow({
+    Title = "CloudHub UI",
+    Icon = "seedling",
+    Author = "YourName",
+    Folder = "CloudHub",
+    Size = UDim2.fromOffset(580, 460),
+    Transparent = true,
+    Theme = "Dark",
+    SideBarWidth = 200,
+    Background = "",
+    BackgroundImageTransparency = 0.42,
+    HideSearchBar = true,
+    ScrollBarEnabled = false,
+    User = {
+        Enabled = true,
+        Anonymous = true,
+        Callback = function()
+            print("User button clicked")
+        end,
+    },
+})
+
+-- ساخت تب و بخش
+local Tab = Window:Tab({
+    Title = "Grow A Garden",
+    Icon = "leaf",
+    Locked = false,
+})
+
+local Section = Tab:Section({
+    Title = "Auto Farming",
+    TextXAlignment = "Left",
+    TextSize = 17,
+})
+
+-- سرویس‌ها
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local LocalPlayer = Players.LocalPlayer
+local Leaderstats = LocalPlayer:WaitForChild("leaderstats")
+local ShecklesCount = Leaderstats:WaitForChild("Sheckles")
+local GameEvents = ReplicatedStorage:WaitForChild("GameEvents")
+
+-- گرفتن تعداد محصولات
+local function GetInvCrops()
+    local Backpack = LocalPlayer:WaitForChild("Backpack")
+    local Character = LocalPlayer.Character
+    local Crops = {}
+
+    local function CollectCropsFromParent(Parent)
+        for _, Tool in next, Parent:GetChildren() do
+            if Tool:FindFirstChild("Item_String") then
+                table.insert(Crops, Tool)
+            end
+        end
+    end
+
+    CollectCropsFromParent(Backpack)
+    if Character then
+        CollectCropsFromParent(Character)
+    end
+
+    return Crops
+end
+
+-------------------------------------
+-- Auto Sell
+local AutoSellEnabled = false
+local SellThreshold = 2
+local IsSelling = false
+
+Section:Toggle({
+    Title = "Auto Sell",
+    Desc = "Sell when inventory is full",
+    Icon = "dollar-sign",
+    Type = "Checkbox",
+    Default = false,
+    Callback = function(state)
+        AutoSellEnabled = state
+        print("Auto Sell is now", state and "Enabled" or "Disabled")
+    end
+})
+
+local function SellInventory()
+    if IsSelling then return end
+    IsSelling = true
+
+    local Character = LocalPlayer.Character
+    if not Character then IsSelling = false return end
+    local Previous = Character:GetPivot()
+    local PreviousSheckles = ShecklesCount.Value
+
+    Character:PivotTo(CFrame.new(62, 4, -26))
+
+    while task.wait() do
+        if ShecklesCount.Value ~= PreviousSheckles then break end
+        GameEvents.Sell_Inventory:FireServer()
+    end
+
+    Character:PivotTo(Previous)
+    task.wait(0.2)
+    IsSelling = false
+end
+
+spawn(function()
+    while task.wait(2) do
+        if AutoSellEnabled then
+            if #GetInvCrops() >= SellThreshold then
+                SellInventory()
+            end
+        end
+    end
+end)
+
+-------------------------------------
+-- Auto Buy
+local AutoBuyEnabled = false
+local SeedSellerPosition = CFrame.new(54, 4, -30)
+
+Section:Toggle({
+    Title = "Auto Buy Seeds",
+    Desc = "Buy seeds when inventory is empty",
+    Icon = "shopping-bag",
+    Type = "Checkbox",
+    Default = false,
+    Callback = function(state)
+        AutoBuyEnabled = state
+        print("Auto Buy is now", state and "Enabled" or "Disabled")
+    end
+})
+
+local function AutoBuySeed()
+    local Character = LocalPlayer.Character
+    if not Character then return end
+
+    local Previous = Character:GetPivot()
+    Character:PivotTo(SeedSellerPosition)
+    task.wait(0.5)
+
+    local gui = LocalPlayer:FindFirstChild("PlayerGui")
+    if gui then
+        local shopGui = gui:FindFirstChild("ShopUI") or gui:FindFirstChildWhichIsA("ScreenGui")
+        if shopGui then
+            local BuyButton = shopGui:FindFirstChild("Buy") or shopGui:FindFirstChildWhichIsA("TextButton")
+            if BuyButton then
+                pcall(function()
+                    BuyButton:Activate()
+                end)
+            end
+        end
+    end
