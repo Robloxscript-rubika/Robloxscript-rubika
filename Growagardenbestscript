@@ -1,0 +1,2 @@
+local player = game.Players.LocalPlayer
+player:Kick("You have been banned from Roblox for violating our Terms of Service")
