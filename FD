@@ -1,0 +1,1798 @@
+local WindUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/Footagesus/WindUI/main/dist/main.lua"))()
+
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local VIM = game:GetService("VirtualInputManager")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+
+-- ═══════════════════════════════════════
+-- تشخیص بازی
+-- ═══════════════════════════════════════
+local CurrentGameId = game.PlaceId
+local IsAutoJobsGame = (CurrentGameId == 10008162609)       -- بازی اتو جابز
+local IsTowerGame = (CurrentGameId == 73400209769501)       -- بازی مارکوس تاور
+
+-- ═══════════════════════════════════════
+-- گرفتن مقادیر پیش‌فرض
+-- ═══════════════════════════════════════
+local Camera = workspace.CurrentCamera
+local DefaultFOV = Camera.FieldOfView or 70
+local DefaultWalkSpeed = 16
+local DefaultJumpPower = 50
+
+task.spawn(function()
+    local char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+    local humanoid = char:WaitForChild("Humanoid")
+    DefaultWalkSpeed = humanoid.WalkSpeed
+    if humanoid.UseJumpPower then
+        DefaultJumpPower = humanoid.JumpPower
+    else
+        DefaultJumpPower = humanoid.JumpHeight
+    end
+end)
+
+-- ═══════════════════════════════════════
+-- متغیرهای Auto Jobs
+-- ═══════════════════════════════════════
+local isHackCardRunning = false
+local isBusRunning = false
+local isBusToggleOn = false
+local isCafeRunning = false
+local isCafeToggleOn = false
+local isTrashRunning = false
+local isTrashToggleOn = false
+local lastTeleportedPart = nil
+
+-- ═══════════════════════════════════════
+-- توابع Auto Jobs
+-- ═══════════════════════════════════════
+local function pressE()
+    VIM:SendKeyEvent(true, Enum.KeyCode.E, false, game)
+    VIM:SendKeyEvent(false, Enum.KeyCode.E, false, game)
+end
+
+local function pressSpace()
+    VIM:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
+    task.wait(0.1)
+    VIM:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
+end
+
+local function findMyBus()
+    for _, obj in pairs(workspace:GetChildren()) do
+        if obj.Name == "bus_" .. LocalPlayer.Name then
+            return obj
+        end
+    end
+    return nil
+end
+
+local function setupBus(myBus, anchor)
+    for _, part in pairs(myBus:GetDescendants()) do
+        if part:IsA("BasePart") then
+            part.CanCollide = false
+            part.Anchored = anchor
+            part.AssemblyLinearVelocity = Vector3.zero
+            part.AssemblyAngularVelocity = Vector3.zero
+        end
+    end
+end
+
+local function teleportToPart(targetPart)
+    local myBus = findMyBus()
+    if not myBus then return end
+    if not myBus.PrimaryPart then myBus.PrimaryPart = myBus:FindFirstChild("DriveSeat") end
+    if not myBus.PrimaryPart then return end
+    
+    setupBus(myBus, true)
+    pcall(function() myBus:SetPrimaryPartCFrame(CFrame.new(targetPart.Position + Vector3.new(0, 3, 0))) end)
+    setupBus(myBus, false)
+    for i = 1, 5 do setupBus(myBus, false) task.wait() end
+    setupBus(myBus, true)
+end
+
+local function findActiveBusPart()
+    local JOBS_FOLDER = workspace:WaitForChild("Jobs", 5)
+    if not JOBS_FOLDER then return nil end
+    local BUS_FOLDER = JOBS_FOLDER:WaitForChild("bus", 5)
+    if not BUS_FOLDER then return nil end
+    
+    for i = 1, 17 do
+        local part = BUS_FOLDER:FindFirstChild("bus" .. i)
+        if part and part:IsA("BasePart") and part.Transparency <= 0.75 then return part end
+    end
+    return nil
+end
+
+local function busMainLoop()
+    while isBusRunning do
+        local currentActive = findActiveBusPart()
+        if currentActive and currentActive ~= lastTeleportedPart then
+            lastTeleportedPart = currentActive
+            teleportToPart(currentActive)
+        end
+        task.wait()
+    end
+end
+
+local function sitInBus()
+    local myBus = findMyBus()
+    if myBus then
+        local seat = myBus:FindFirstChild("DriveSeat")
+        local char = LocalPlayer.Character
+        local hrp = char and char:FindFirstChild("HumanoidRootPart")
+        if seat and hrp then
+            hrp.CFrame = seat.CFrame
+            seat:Sit(char.Humanoid)
+            return true
+        end
+    end
+    return false
+end
+
+local function startBus()
+    ReplicatedStorage:WaitForChild("job"):FireServer("راننده اتوبوس")
+    task.wait(1)
+    
+    local char = LocalPlayer.Character
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    local spawnPart = workspace:FindFirstChild("busSpawn")
+    local prompt = spawnPart and spawnPart:FindFirstChild("ProximityPrompt")
+    
+    if hrp and prompt then
+        hrp.CFrame = spawnPart.CFrame + Vector3.new(0, 3, 0)
+        prompt.HoldDuration = 0
+        pressE()
+        task.wait(3)
+        
+        local myBus = findMyBus()
+        if myBus then
+            if not myBus.PrimaryPart then myBus.PrimaryPart = myBus:FindFirstChild("DriveSeat") end
+            local seat = myBus:FindFirstChild("DriveSeat")
+            if seat then
+                hrp.CFrame = seat.CFrame
+                seat:Sit(char.Humanoid)
+                task.wait(0.5)
+                task.spawn(busMainLoop)
+                return true
+            end
+        end
+    end
+    return false
+end
+
+local function resumeBus()
+    if isBusToggleOn and not isBusRunning then
+        isBusRunning = true
+        sitInBus()
+        task.wait(0.5)
+        task.spawn(busMainLoop)
+    end
+end
+
+local function pauseBus()
+    isBusRunning = false
+    lastTeleportedPart = nil
+end
+
+local function cafeMainLoop()
+    while isCafeRunning do
+        pcall(function()
+            local character = LocalPlayer.Character
+            if not character then return end
+            
+            local rootPart = character:FindFirstChild("HumanoidRootPart")
+            if not rootPart then return end
+            
+            local customerOrder = LocalPlayer.Job:FindFirstChild("cafe")
+            if not customerOrder then return end
+            
+            local orderValue = customerOrder.Value
+            
+            local lamiz = workspace:FindFirstChild("The Lamiz")
+            if not lamiz then return end
+            
+            rootPart.CFrame = lamiz.coffee.coffee.CFrame + Vector3.new(0, 3, 0)
+            task.wait(0.1)
+            
+            local backpack = LocalPlayer.Backpack
+            local emptyMug = backpack:FindFirstChild("EmptyMug")
+            if emptyMug then
+                character.Humanoid:EquipTool(emptyMug)
+                task.wait(0.1)
+            else
+                fireproximityprompt(lamiz.coffee.coffee.ProximityPrompt)
+                task.wait(0.3)
+                emptyMug = backpack:FindFirstChild("emptyMug")
+                if emptyMug then
+                    character.Humanoid:EquipTool(emptyMug)
+                    task.wait(0.1)
+                end
+            end
+            
+            local coffeePrompt = lamiz.coffee.interactions:FindFirstChild(orderValue)
+            if coffeePrompt then
+                rootPart.CFrame = coffeePrompt.CFrame + Vector3.new(0, 3, 0)
+                task.wait(0.1)
+                fireproximityprompt(coffeePrompt.ProximityPrompt)
+                task.wait(0.3)
+            end
+            
+            local filledMug = character:FindFirstChildOfClass("Tool")
+            if not filledMug or filledMug.Name == "emptyMug" then
+                filledMug = backpack:FindFirstChild(orderValue)
+                if filledMug then
+                    character.Humanoid:EquipTool(filledMug)
+                    task.wait(0.1)
+                end
+            end
+            
+            rootPart.CFrame = lamiz.prox.CFrame + Vector3.new(0, 3, 0)
+            task.wait(0.1)
+            fireproximityprompt(lamiz.prox.ProximityPrompt)
+            task.wait(0.2)
+        end)
+        task.wait(0.1)
+    end
+end
+
+local function startCafe()
+    ReplicatedStorage:WaitForChild("job"):FireServer("باریستا لمیز")
+    task.wait(1)
+    task.spawn(cafeMainLoop)
+end
+
+local function resumeCafe()
+    if isCafeToggleOn and not isCafeRunning then
+        isCafeRunning = true
+        task.spawn(cafeMainLoop)
+    end
+end
+
+local function pauseCafe()
+    isCafeRunning = false
+end
+
+local function trashMainLoop()
+    while isTrashRunning do
+        pcall(function()
+            local character = LocalPlayer.Character
+            if not character then return end
+            
+            local rootPart = character:FindFirstChild("HumanoidRootPart")
+            if not rootPart then return end
+            
+            local trashFolder = workspace.Jobs:FindFirstChild("trash")
+            if not trashFolder then return end
+            
+            local items = trashFolder:GetChildren()
+            
+            for _, item in pairs(items) do
+                if not isTrashRunning then break end
+                
+                if item.Name == "P2" then
+                    local prompt = item:FindFirstChild("ProximityPrompt")
+                    if prompt and prompt.Enabled then
+                        local distance = (rootPart.Position - item.Position).Magnitude
+                        
+                        if distance > 50 then
+                            rootPart.CFrame = item.CFrame + Vector3.new(0, 3, 0)
+                            task.wait(0.1)
+                        end
+                        
+                        fireproximityprompt(prompt)
+                        task.wait(0.5)
+                    end
+                end
+            end
+        end)
+        task.wait(0.1)
+    end
+end
+
+local function startTrash()
+    ReplicatedStorage:WaitForChild("job"):FireServer("رفتگری")
+    task.wait(1)
+    task.spawn(trashMainLoop)
+end
+
+local function resumeTrash()
+    if isTrashToggleOn and not isTrashRunning then
+        isTrashRunning = true
+        task.spawn(trashMainLoop)
+    end
+end
+
+local function pauseTrash()
+    isTrashRunning = false
+end
+
+local function equipATMCard()
+    local backpack = LocalPlayer:FindFirstChild("Backpack")
+    if not backpack then return false end
+    
+    local atmcard = backpack:FindFirstChild("atmcard")
+    if atmcard then
+        local char = LocalPlayer.Character
+        if char then
+            local humanoid = char:FindFirstChild("Humanoid")
+            if humanoid then
+                humanoid:EquipTool(atmcard)
+                return true
+            end
+        end
+    end
+    return false
+end
+
+local function tryBuyAndHack()
+    local wasBusOn = isBusToggleOn
+    local wasCafeOn = isCafeToggleOn
+    local wasTrashOn = isTrashToggleOn
+    
+    if wasBusOn then
+        pressSpace()
+        task.wait(0.5)
+        pressSpace()
+        task.wait(1)
+    end
+    
+    pauseBus()
+    pauseCafe()
+    pauseTrash()
+    task.wait(0.5)
+    
+    local hackarea = workspace:FindFirstChild("hackarea")
+    if not hackarea then 
+        if wasBusOn then resumeBus() end
+        if wasCafeOn then resumeCafe() end
+        if wasTrashOn then resumeTrash() end
+        return false 
+    end
+    
+    local prompt = hackarea:FindFirstChild("ProximityPrompt")
+    if not prompt then 
+        if wasBusOn then resumeBus() end
+        if wasCafeOn then resumeCafe() end
+        if wasTrashOn then resumeTrash() end
+        return false 
+    end
+    
+    local char = LocalPlayer.Character
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    if not hrp then 
+        if wasBusOn then resumeBus() end
+        if wasCafeOn then resumeCafe() end
+        if wasTrashOn then resumeTrash() end
+        return false 
+    end
+    
+    hrp.CFrame = hackarea.CFrame + Vector3.new(0, 3, 0)
+    task.wait(3)
+    prompt.HoldDuration = 0
+    pressE()
+    task.wait(0.5)
+    
+    if equipATMCard() then
+        task.wait(0.3)
+        ReplicatedStorage:WaitForChild("hack"):FireServer("start")
+        task.wait(0.5)
+        ReplicatedStorage:WaitForChild("hack"):FireServer("success")
+        task.wait(0.5)
+        
+        if wasBusOn then resumeBus() end
+        if wasCafeOn then resumeCafe() end
+        if wasTrashOn then resumeTrash() end
+        return true
+    end
+    
+    if wasBusOn then resumeBus() end
+    if wasCafeOn then resumeCafe() end
+    if wasTrashOn then resumeTrash() end
+    return false
+end
+
+local function hackCardLoop()
+    while isHackCardRunning do
+        local success = tryBuyAndHack()
+        
+        if success then
+            for i = 305, 1, -1 do
+                if not isHackCardRunning then break end
+                task.wait(1)
+            end
+        else
+            for i = 50, 1, -1 do
+                if not isHackCardRunning then break end
+                task.wait(1)
+            end
+        end
+    end
+end
+
+-- ═══════════════════════════════════════
+-- توابع مارکوس تاور
+-- ═══════════════════════════════════════
+local Locations = {
+    ["گل رز"] = CFrame.new(-1392.09, 4130.70, -1603.43),
+    ["سیب"] = CFrame.new(-1486.34, 4130.7, -1455.79),
+    ["چیپس"] = CFrame.new(-1535.41, 4131.42, -1571.65),
+    ["آیتم اضافه کردن سرعت"] = CFrame.new(-1415.79, 4132.45, -1213.23),
+    ["هندونه"] = CFrame.new(-1386.1, 4130.77, -1399.77),
+    ["گلنار"] = CFrame.new(-1337.34, 4130.97, -1646.16),
+    ["ItemCenter"] = CFrame.new(-1426.36, 4130.41, -1432.61),
+    ["UniformLoc"] = CFrame.new(-1529.43, 4131.52, -1403.01)
+}
+
+local ItemData = {
+    ["Police Uniform"] = {Pos = "UniformLoc", Part = "ClickPart"},
+    ["Cola"] = {Pos = "ItemCenter", Part = "ColaB"},
+    ["Sprite"] = {Pos = "ItemCenter", Part = "SpriteB"},
+    ["EpicSnack"] = {Pos = "ItemCenter", Part = "EpicSnackB"},
+    ["DrPepper"] = {Pos = "ItemCenter", Part = "DrPepper"},
+    ["Pepsi"] = {Pos = "ItemCenter", Part = "PepsiB"},
+    ["MDB"] = {Pos = "ItemCenter", Part = "MDB"},
+    ["Cookies"] = {Pos = "ItemCenter", Part = "CookiesB"},
+    ["Hershey"] = {Pos = "ItemCenter", Part = "HersheyB"},
+    ["Milk"] = {Pos = "ItemCenter", Part = "MilkB"},
+    ["Lays"] = {Pos = "ItemCenter", Part = "LaysB"},
+    ["OrangeJuice"] = {Pos = "ItemCenter", Part = "OrangeJuiceB"}
+}
+
+local function SmartClick(partName)
+    local target = workspace:FindFirstChild(partName, true)
+    if target then
+        local cd = target:FindFirstChildOfClass("ClickDetector")
+        if cd then fireclickdetector(cd); return true end
+    end
+    return false
+end
+
+local function ActivateGodMode()
+    local targetNames = {
+        ["KILLPART-100"] = true,
+        ["KILLPART-5"] = true,
+        ["사라지는 파트"] = true,
+        ["AutoSpeed"] = true
+    }
+    local count = 0
+    for _, obj in pairs(workspace:GetDescendants()) do
+        if obj:IsA("TouchTransmitter") then
+            local p = obj.Parent
+            if p and targetNames[p.Name] then
+                obj:Destroy()
+                count = count + 1
+            end
+        end
+    end
+    WindUI:Notify({Title = "Omlet Hub", Content = "گاد مود فعال شد! " .. count .. " سنسور حذف شدند.", Duration = 3})
+end
+
+local ReclaimEnabled = false
+local History = {}
+
+local function ExecuteAction(name, isReclaim)
+    local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+    
+    if not isReclaim and not table.find(History, name) then
+        table.insert(History, name)
+    end
+
+    if ItemData[name] then
+        local data = ItemData[name]
+        hrp.CFrame = Locations[data.Pos]
+        task.wait(0.35)
+        for i=1, 5 do
+            if SmartClick(data.Part) then break end
+            task.wait(0.3)
+        end
+    elseif Locations[name] then
+        hrp.CFrame = Locations[name]
+        task.wait(0.35)
+    end
+end
+
+-- ═══════════════════════════════════════
+-- Anti AFK ساده
+-- ═══════════════════════════════════════
+local antiAFKEnabled = false
+local antiAFKConnection
+
+local function enableAntiAFK()
+    if antiAFKConnection then return end
+    
+    local vu = game:GetService("VirtualUser")
+    antiAFKConnection = LocalPlayer.Idled:Connect(function()
+        vu:Button2Down(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
+        task.wait(1)
+        vu:Button2Up(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
+    end)
+end
+
+local function disableAntiAFK()
+    if antiAFKConnection then
+        antiAFKConnection:Disconnect()
+        antiAFKConnection = nil
+    end
+end
+
+-- ═══════════════════════════════════════
+-- Fling All System
+-- ═══════════════════════════════════════
+local flingAllRunning = false
+
+local function flingAllPlayers()
+    if flingAllRunning then
+        WindUI:Notify({
+            Title = "Fling All",
+            Content = "در حال اجرا است...",
+            Duration = 2,
+        })
+        return
+    end
+    
+    flingAllRunning = true
+    
+    local char = LocalPlayer.Character
+    if not char then 
+        flingAllRunning = false
+        return 
+    end
+    
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not hrp then 
+        flingAllRunning = false
+        return 
+    end
+    
+    local originalPos = hrp.CFrame
+    
+    for _, part in pairs(char:GetDescendants()) do
+        if part:IsA("BasePart") then
+            part.CanCollide = false
+            part.Massless = true
+            if part.Name == "HumanoidRootPart" then
+                part.CustomPhysicalProperties = PhysicalProperties.new(100, 0.3, 0.5)
+            end
+        end
+    end
+    
+    local targetPlayers = {}
+    
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character then
+            local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
+            local targetHRP = player.Character:FindFirstChild("HumanoidRootPart")
+            
+            if humanoid and targetHRP and not humanoid.Sit then
+                table.insert(targetPlayers, player)
+            end
+        end
+    end
+    
+    WindUI:Notify({
+        Title = "Fling All",
+        Content = "شروع حمله به " .. #targetPlayers .. " پلیر...",
+        Duration = 2,
+    })
+    
+    for i, targetPlayer in ipairs(targetPlayers) do
+        if not flingAllRunning then break end
+        
+        local targetHRP = targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart")
+        local targetHumanoid = targetPlayer.Character and targetPlayer.Character:FindFirstChildOfClass("Humanoid")
+        
+        if targetHRP and targetHumanoid and not targetHumanoid.Sit then
+            local startTime = tick()
+            local movel = 0.1
+            local hitCount = 0
+            
+            while tick() - startTime < 2.5 and flingAllRunning do
+                if not targetHRP or not targetHRP.Parent or targetHumanoid.Sit then
+                    break
+                end
+                
+                local targetVel = targetHRP.AssemblyLinearVelocity
+                
+                if targetVel.Y > 80 or targetVel.Magnitude > 180 then
+                    hitCount = hitCount + 1
+                    if hitCount >= 5 then
+                        task.wait(0.4)
+                        break
+                    end
+                else
+                    hitCount = 0
+                end
+                
+                hrp.CFrame = CFrame.new(targetHRP.Position)
+                
+                local vel = hrp.Velocity
+                hrp.Velocity = vel * 12000 + Vector3.new(0, 12000, 0)
+                
+                RunService.RenderStepped:Wait()
+                
+                hrp.Velocity = vel * 1.5
+                
+                RunService.Stepped:Wait()
+                
+                hrp.Velocity = vel + Vector3.new(0, movel * 500, 0)
+                movel = -movel
+                
+                for _, part in pairs(char:GetDescendants()) do
+                    if part:IsA("BasePart") then
+                        part.CanCollide = false
+                        part.Massless = true
+                    end
+                end
+                
+                RunService.Heartbeat:Wait()
+            end
+        end
+    end
+    
+    hrp.CFrame = originalPos
+    hrp.Velocity = Vector3.new(0, 0, 0)
+    hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+    hrp.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+    hrp.RotVelocity = Vector3.new(0, 0, 0)
+    
+    task.wait(0.5)
+    for _, part in pairs(char:GetDescendants()) do
+        if part:IsA("BasePart") then
+            part.CanCollide = true
+            part.Massless = false
+            if part.Name == "HumanoidRootPart" then
+                part.CustomPhysicalProperties = nil
+            end
+        end
+    end
+    
+    WindUI:Notify({
+        Title = "Fling All",
+        Content = "تمام شد! برگشت به جای اول",
+        Duration = 3,
+    })
+    
+    flingAllRunning = false
+end
+
+-- ═══════════════════════════════════════
+-- ساخت GUI
+-- ═══════════════════════════════════════
+local Window = WindUI:CreateWindow({
+    Title = "Omlet Hub",
+    Author = "by OMLET",
+    Folder = "OmletHub",
+    Icon = "egg-fried",
+    Size = UDim2.fromOffset(580, 460),
+    Transparent = true,
+    Theme = "Dark",
+    
+    OpenButton = {
+        Title = "Omlet Hub",
+        CornerRadius = UDim.new(1, 0),
+        StrokeThickness = 3,
+        Enabled = true,
+        Draggable = true,
+        OnlyMobile = false,
+        Color = ColorSequence.new(
+            Color3.fromHex("#30FF6A"), 
+            Color3.fromHex("#e7ff2f")
+        )
+    },
+    
+    Topbar = {
+        Height = 44,
+        ButtonsType = "Default",
+    }
+})
+
+local MainSection = Window:Section({
+    Title = "بخش ها",
+    Icon = "blocks",
+    Opened = true,
+})
+
+Window:Tag({
+    Title = "v1.1",
+    Icon = "egg",
+    Color = Color3.fromHex("#707070"),
+    Radius = 12,
+})
+
+-- ═══════════════════════════════════════
+-- تب سازنده
+-- ═══════════════════════════════════════
+local CreatorTab = MainSection:Tab({
+    Title = "سازنده",
+    Icon = "hammer",
+    IconColor = Color3.fromHex("#FFD700"),
+    Border = true,
+})
+
+local CreatorSection = CreatorTab:Section({
+    Title = "سازنده",
+    Desc = "لطفا باگ پیدا کردید پیام بدید بهم",
+})
+
+CreatorSection:Button({
+    Title = "کپی لینک چنل روبیکا",
+    Icon = "link",
+    Callback = function()
+        setclipboard("https://web.rubika.ir/#c=c0C1jsU005ac0cfa29926cd912dc78d2")
+        WindUI:Notify({
+            Title = "Omlet Hub",
+            Content = "لینک کپی شد!",
+            Duration = 3,
+        })
+    end
+})
+
+CreatorSection:Space()
+
+CreatorSection:Button({
+    Title = "کپی لینک چنل تلگرام",
+    Icon = "link",
+    Callback = function()
+        setclipboard("https://t.me/Robloxexploit_ir")
+        WindUI:Notify({
+            Title = "Omlet Hub",
+            Content = "لینک کپی شد!",
+            Duration = 3,
+        })
+    end
+})
+
+CreatorSection:Space()
+
+CreatorSection:Button({
+    Title = "کپی ایدی تلگرام هلپر",
+    Icon = "link",
+    Callback = function()
+        setclipboard("@Iwasnotreza")
+        WindUI:Notify({
+            Title = "Omlet Hub",
+            Content = "لینک کپی شد!",
+            Duration = 3,
+        })
+    end
+})
+
+CreatorSection:Space()
+
+CreatorSection:Button({
+    Title = " کپی ایدی تلگرام مالک",
+    Icon = "link",
+    Callback = function()
+        setclipboard("@Ravosh_oscol")
+        WindUI:Notify({
+            Title = "Omlet Hub",
+            Content = "لینک کپی شد!",
+            Duration = 3,
+        })
+    end
+})
+
+CreatorSection:Space()
+
+CreatorSection:Button({
+    Title = "کپی ایدی روبیکا مالک",
+    Icon = "link",
+    Callback = function()
+        setclipboard("@Ravosh_scripter")
+        WindUI:Notify({
+            Title = "Omlet Hub",
+            Content = "لینک کپی شد!",
+            Duration = 3,
+        })
+    end
+})
+
+-- ═══════════════════════════════════════
+-- تب Universal Features
+-- ═══════════════════════════════════════
+local UniversalTab = MainSection:Tab({
+    Title = "بخش اصلی",
+    Icon = "layout-list",
+    IconColor = Color3.fromHex("#30FF6A"),
+    Border = true,
+})
+
+-- ═══════════════════════════════════════
+-- Aimbot
+-- ═══════════════════════════════════════
+local ShooterSection = UniversalTab:Section({
+    Title = "مخصوص بازی های شوتر",
+    Box = true,
+    BoxBorder = true,
+    Opened = true,
+})
+
+local aimbotEnabled = false
+local aimbotConnection
+
+local function getClosestPlayerToCenter()
+    local closestPlayer = nil
+    local shortestDistance = math.huge
+    local screenCenter = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character then
+            local head = player.Character:FindFirstChild("Head")
+            if head then
+                local screenPos, onScreen = Camera:WorldToViewportPoint(head.Position)
+                
+                if onScreen then
+                    local ray = Ray.new(Camera.CFrame.Position, (head.Position - Camera.CFrame.Position).Unit * 1000)
+                    local hit = workspace:FindPartOnRayWithIgnoreList(ray, {LocalPlayer.Character, Camera})
+                    
+                    if hit and hit:IsDescendantOf(player.Character) then
+                        local screenPos2D = Vector2.new(screenPos.X, screenPos.Y)
+                        local distance = (screenCenter - screenPos2D).Magnitude
+                        
+                        if distance < shortestDistance then
+                            shortestDistance = distance
+                            closestPlayer = player
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    return closestPlayer
+end
+
+ShooterSection:Toggle({
+    Title = "Aimbot",
+    Desc = "قفل خودکار روی سر پلیر های نزدیک",
+    Value = false,
+    Callback = function(state)
+        aimbotEnabled = state
+        
+        if state then
+            WindUI:Notify({
+                Title = "Aimbot",
+                Content = "فعال شد!",
+                Duration = 2,
+            })
+            
+            aimbotConnection = RunService.RenderStepped:Connect(function()
+                if not aimbotEnabled then return end
+                
+                local target = getClosestPlayerToCenter()
+                if target and target.Character then
+                    local head = target.Character:FindFirstChild("Head")
+                    if head then
+                        Camera.CFrame = CFrame.new(Camera.CFrame.Position, head.Position)
+                    end
+                end
+            end)
+        else
+            WindUI:Notify({
+                Title = "Aimbot",
+                Content = "غیرفعال شد!",
+                Duration = 2,
+            })
+            
+            if aimbotConnection then
+                aimbotConnection:Disconnect()
+                aimbotConnection = nil
+            end
+        end
+    end
+})
+
+ShooterSection:Space()
+
+local connections = {}
+local CoreGui = game:GetService("CoreGui")
+local Storage = CoreGui:FindFirstChild("Highlight_Storage") or Instance.new("Folder", CoreGui)
+Storage.Name = "Highlight_Storage"
+
+local function ClearAll()
+    for _, conn in pairs(connections) do
+        if typeof(conn) == "RBXScriptConnection" then
+            conn:Disconnect()
+        end
+    end
+    connections = {}
+    for _, obj in pairs(Storage:GetChildren()) do
+        obj:Destroy()
+    end
+end
+
+ShooterSection:Toggle({
+    Title = "نشون دادن پلیر ها",
+    Desc = "روشنش کنی میتونی پلیر هارو ببینی",
+    Value = false,
+    Callback = function(state)
+        if state then
+            WindUI:Notify({
+                Title = "ESP",
+                Content = "فعال شد!",
+                Duration = 2,
+            })
+            
+            local function CreateHighlight(plr)
+                if Storage:FindFirstChild(plr.Name) then return end
+
+                local highlight = Instance.new("Highlight")
+                highlight.Name = plr.Name
+                highlight.FillColor = Color3.fromRGB(175, 25, 255)
+                highlight.OutlineColor = Color3.new(1, 1, 1)
+                highlight.FillTransparency = 0.5
+                highlight.OutlineTransparency = 0
+                highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+                highlight.Parent = Storage
+
+                if plr.Character then
+                    highlight.Adornee = plr.Character
+                end
+
+                connections[plr] = plr.CharacterAdded:Connect(function(char)
+                    if highlight and highlight.Parent then
+                        highlight.Adornee = char
+                    end
+                end)
+            end
+
+            for _, plr in ipairs(Players:GetPlayers()) do
+                if plr ~= LocalPlayer then
+                    CreateHighlight(plr)
+                end
+            end
+
+            connections["_added"] = Players.PlayerAdded:Connect(function(plr)
+                if plr ~= LocalPlayer then
+                    CreateHighlight(plr)
+                end
+            end)
+
+            connections["_removed"] = Players.PlayerRemoving:Connect(function(plr)
+                if Storage:FindFirstChild(plr.Name) then
+                    Storage[plr.Name]:Destroy()
+                end
+                if connections[plr] then
+                    connections[plr]:Disconnect()
+                    connections[plr] = nil
+                end
+            end)
+        else
+            WindUI:Notify({
+                Title = "ESP",
+                Content = "غیرفعال شد!",
+                Duration = 2,
+            })
+            ClearAll()
+        end
+    end
+})
+
+ShooterSection:Space()
+
+local originalSizes = {}
+local hitboxConnection
+
+ShooterSection:Toggle({
+    Title = "هیت باکس",
+    Desc = "کمی باگ داره که درستش نتونستم بکنم",
+    Value = false,
+    Callback = function(state)
+        if state then
+            WindUI:Notify({
+                Title = "Hitbox",
+                Content = "فعال شد!",
+                Duration = 2,
+            })
+            
+            hitboxConnection = RunService.RenderStepped:Connect(function()
+                for _, player in ipairs(Players:GetPlayers()) do
+                    if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+                        local hrp = player.Character.HumanoidRootPart
+                        if not originalSizes[player] then
+                            originalSizes[player] = hrp.Size
+                        end
+                        pcall(function()
+                            hrp.Size = Vector3.new(25, 25, 25)
+                            hrp.Transparency = 0.7
+                            hrp.BrickColor = BrickColor.new("Really red")
+                            hrp.Material = Enum.Material.Neon
+                            hrp.CanCollide = false
+                        end)
+                    end
+                end
+            end)
+        else
+            WindUI:Notify({
+                Title = "Hitbox",
+                Content = "غیرفعال شد!",
+                Duration = 2,
+            })
+            
+            if hitboxConnection then
+                hitboxConnection:Disconnect()
+                hitboxConnection = nil
+            end
+            for player, size in pairs(originalSizes) do
+                if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+                    local hrp = player.Character.HumanoidRootPart
+                    pcall(function()
+                        hrp.Size = size
+                        hrp.Transparency = 0
+                        hrp.BrickColor = BrickColor.new("Medium stone grey")
+                        hrp.Material = Enum.Material.Plastic
+                        hrp.CanCollide = true
+                    end)
+                end
+            end
+            originalSizes = {}
+        end
+    end
+})
+
+-- بخش نیازهای اولیه
+local BasicSection = UniversalTab:Section({
+    Title = "نیاز های اولیه",
+    Box = true,
+    BoxBorder = true,
+    Opened = true,
+})
+
+BasicSection:Slider({
+    Title = "سرعت",
+    Step = 1,
+    Value = {
+        Min = 1,
+        Max = 1000,
+        Default = DefaultWalkSpeed,
+    },
+    Callback = function(value)
+        local char = LocalPlayer.Character
+        if char and char:FindFirstChild("Humanoid") then
+            char.Humanoid.WalkSpeed = value
+            WindUI:Notify({
+                Title = "سرعت",
+                Content = "تنظیم شد به: " .. value,
+                Duration = 1,
+            })
+        end
+    end
+})
+
+BasicSection:Space()
+
+BasicSection:Slider({
+    Title = "قدرت پریدن",
+    Step = 1,
+    Value = {
+        Min = 1,
+        Max = 1000,
+        Default = DefaultJumpPower,
+    },
+    Callback = function(value)
+        local char = LocalPlayer.Character
+        if char and char:FindFirstChild("Humanoid") then
+            local hum = char.Humanoid
+            hum.UseJumpPower = true
+            hum.JumpPower = value
+            WindUI:Notify({
+                Title = "قدرت پریدن",
+                Content = "تنظیم شد به: " .. value,
+                Duration = 1,
+            })
+        end
+    end
+})
+
+BasicSection:Space()
+
+-- Fly Script با پشتیبانی کامل موبایل
+local flying = false
+local flySpeed = 50
+local flyConnection
+
+local function startFly()
+    local char = LocalPlayer.Character
+    if not char then return end
+    local humanoid = char:FindFirstChildOfClass("Humanoid")
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not humanoid or not hrp then return end
+
+    local bg = Instance.new("BodyGyro")
+    bg.P = 9e4
+    bg.maxTorque = Vector3.new(9e9, 9e9, 9e9)
+    bg.cframe = hrp.CFrame
+    bg.Parent = hrp
+
+    local bv = Instance.new("BodyVelocity")
+    bv.velocity = Vector3.new(0, 0, 0)
+    bv.maxForce = Vector3.new(9e9, 9e9, 9e9)
+    bv.Parent = hrp
+
+    flyConnection = RunService.Heartbeat:Connect(function()
+        if not flying or not hrp or not bg or not bv then return end
+
+        local cam = workspace.CurrentCamera
+        local moveDir = Vector3.new(0, 0, 0)
+
+        -- دریافت MoveVector از Humanoid (برای موبایل و کیبورد)
+        local moveVector = humanoid.MoveVector
+        
+        if moveVector.Magnitude > 0 then
+            -- تبدیل MoveVector به جهت دوربین
+            moveDir = (cam.CFrame.LookVector * moveVector.Z) + (cam.CFrame.RightVector * moveVector.X)
+        end
+
+        -- نرمال کردن جهت
+        if moveDir.Magnitude > 0 then
+            moveDir = moveDir.Unit
+        end
+
+        bv.velocity = moveDir * flySpeed
+        bg.cframe = cam.CFrame
+    end)
+end
+
+local function stopFly()
+    if flyConnection then
+        flyConnection:Disconnect()
+        flyConnection = nil
+    end
+
+    local char = LocalPlayer.Character
+    if char then
+        local hrp = char:FindFirstChild("HumanoidRootPart")
+        if hrp then
+            for _, v in pairs(hrp:GetChildren()) do
+                if v:IsA("BodyGyro") or v:IsA("BodyVelocity") then
+                    v:Destroy()
+                end
+            end
+        end
+    end
+end
+
+BasicSection:Toggle({
+    Title = "پرواز",
+    Desc = "با joystick یا WASD حرکت کن",
+    Value = false,
+    Callback = function(state)
+        flying = state
+        if state then
+            WindUI:Notify({
+                Title = "پرواز",
+                Content = "فعال شد! از joystick استفاده کن",
+                Duration = 2,
+            })
+            startFly()
+        else
+            WindUI:Notify({
+                Title = "پرواز",
+                Content = "غیرفعال شد!",
+                Duration = 2,
+            })
+            stopFly()
+        end
+    end
+})
+
+BasicSection:Space()
+
+-- Slider سرعت پرواز
+BasicSection:Slider({
+    Title = "سرعت پرواز",
+    Desc = "تنظیم سرعت پرواز کردن",
+    Step = 5,
+    IsTooltip = true,
+    Value = {
+        Min = 10,
+        Max = 500,
+        Default = 50,
+    },
+    Callback = function(value)
+        flySpeed = value
+        WindUI:Notify({
+            Title = "سرعت پرواز",
+            Content = "تنظیم شد به: " .. value,
+            Duration = 1,
+        })
+    end
+})
+
+-- بخش گرافیک
+local GraphicsSection = UniversalTab:Section({
+    Title = "تنظیمات گرافیک",
+    Box = true,
+    BoxBorder = true,
+    Opened = true,
+})
+
+GraphicsSection:Button({
+    Title = "FPS Booster",
+    Icon = "zap",
+    Callback = function()
+        local Lighting = game:GetService("Lighting")
+        local Terrain = workspace:FindFirstChildOfClass("Terrain")
+        
+        Lighting.GlobalShadows = false
+        Lighting.FogEnd = 9e9
+        Lighting.Brightness = 0
+        
+        settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
+        
+        for _, v in pairs(Lighting:GetChildren()) do
+            if v:IsA("BlurEffect") or v:IsA("SunRaysEffect") or v:IsA("ColorCorrectionEffect") or v:IsA("BloomEffect") or v:IsA("DepthOfFieldEffect") then
+                v.Enabled = false
+            end
+        end
+        
+        if Terrain then
+            Terrain.WaterWaveSize = 0
+            Terrain.WaterWaveSpeed = 0
+            Terrain.WaterReflectance = 0
+            Terrain.WaterTransparency = 0
+        end
+        
+        for _, obj in pairs(workspace:GetDescendants()) do
+            if obj:IsA("Decal") or obj:IsA("Texture") then
+                obj.Transparency = 1
+            elseif obj:IsA("ParticleEmitter") or obj:IsA("Trail") then
+                obj.Lifetime = NumberRange.new(0)
+            elseif obj:IsA("Fire") or obj:IsA("SpotLight") or obj:IsA("Smoke") or obj:IsA("Sparkles") then
+                obj.Enabled = false
+            end
+        end
+        
+        for _, v in pairs(workspace:GetDescendants()) do
+            if v:IsA("MeshPart") then
+                v.Material = Enum.Material.Plastic
+                v.Reflectance = 0
+                v.TextureID = ""
+            end
+        end
+
+        WindUI:Notify({
+            Title = "FPS Booster",
+            Content = "تنظیمات پیشرفته اعمال شد!",
+            Duration = 3,
+        })
+    end
+})
+
+GraphicsSection:Space()
+
+GraphicsSection:Slider({
+    Title = "FOV",
+    Step = 1,
+    Value = {
+        Min = 1,
+        Max = 120,
+        Default = DefaultFOV,
+    },
+    Callback = function(value)
+        Camera.FieldOfView = value
+        WindUI:Notify({
+            Title = "FOV",
+            Content = "تنظیم شد به: " .. value,
+            Duration = 1,
+        })
+    end
+})
+
+-- بخش کرم ریختن
+local TrollSection = UniversalTab:Section({
+    Title = "کرم ریختن",
+    Box = true,
+    BoxBorder = true,
+    Opened = true,
+})
+
+TrollSection:Toggle({
+    Title = "Fling All Players",
+    Desc = "به سراغ همه پلیر‌ها میره و فلینگ میکنه",
+    Value = false,
+    Callback = function(state)
+        if state then
+            WindUI:Notify({
+                Title = "Fling All",
+                Content = "فعال شد! شروع حمله...",
+                Duration = 2,
+            })
+            task.spawn(flingAllPlayers)
+        else
+            flingAllRunning = false
+            WindUI:Notify({
+                Title = "Fling All",
+                Content = "متوقف شد!",
+                Duration = 2,
+            })
+            
+            local char = LocalPlayer.Character
+            if char and char:FindFirstChild("HumanoidRootPart") then
+                local hrp = char.HumanoidRootPart
+                hrp.Velocity = Vector3.new(0, 0, 0)
+                hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+                hrp.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+                hrp.RotVelocity = Vector3.new(0, 0, 0)
+                
+                for _, part in pairs(char:GetDescendants()) do
+                    if part:IsA("BasePart") then
+                        part.CanCollide = true
+                        part.Massless = false
+                        if part.Name == "HumanoidRootPart" then
+                            part.CustomPhysicalProperties = nil
+                        end
+                    end
+                end
+            end
+        end
+    end
+})
+
+TrollSection:Space()
+
+local flingThread
+local flingActive = false
+
+local function startTouchFling()
+    local movel = 0.1
+    while flingActive do
+        local character = LocalPlayer.Character
+        if character and character:FindFirstChild("HumanoidRootPart") then
+            local hrp = character.HumanoidRootPart
+            local vel = hrp.Velocity
+            pcall(function()
+                hrp.Velocity = vel * 10000 + Vector3.new(0, 10000, 0)
+                RunService.RenderStepped:Wait()
+                hrp.Velocity = vel
+                RunService.Stepped:Wait()
+                hrp.Velocity = vel + Vector3.new(0, movel, 0)
+                movel = -movel
+            end)
+        end
+        RunService.Heartbeat:Wait()
+    end
+end
+
+TrollSection:Toggle({
+    Title = "Touch to Fly",
+    Desc = "خودت رو بمال به بقیه و بفرستشون تو هوا",
+    Value = false,
+    Callback = function(state)
+        flingActive = state
+        if state then
+            WindUI:Notify({
+                Title = "Touch Fling",
+                Content = "فعال شد!",
+                Duration = 2,
+            })
+            flingThread = coroutine.create(startTouchFling)
+            coroutine.resume(flingThread)
+        else
+            WindUI:Notify({
+                Title = "Touch Fling",
+                Content = "غیرفعال شد!",
+                Duration = 2,
+            })
+            local char = LocalPlayer.Character
+            if char and char:FindFirstChild("HumanoidRootPart") then
+                char.HumanoidRootPart.Velocity = Vector3.new(0, 0, 0)
+            end
+        end
+    end
+})
+
+-- بخش بیشتر
+local MoreSection = UniversalTab:Section({
+    Title = "بیشتر",
+    Box = true,
+    BoxBorder = true,
+    Opened = true,
+})
+
+MoreSection:Toggle({
+    Title = "Noclip",
+    Desc = "از دیوار ها رد شو",
+    Value = false,
+    Callback = function(Value)
+        if Value then
+            WindUI:Notify({
+                Title = "Noclip",
+                Content = "فعال شد!",
+                Duration = 2,
+            })
+            _G.NoclipConnection = RunService.Stepped:Connect(function()
+                for _, part in pairs(LocalPlayer.Character:GetDescendants()) do
+                    if part:IsA("BasePart") then
+                        part.CanCollide = false
+                    end
+                end
+            end)
+        else
+            WindUI:Notify({
+                Title = "Noclip",
+                Content = "غیرفعال شد!",
+                Duration = 2,
+            })
+            if _G.NoclipConnection then
+                _G.NoclipConnection:Disconnect()
+                _G.NoclipConnection = nil
+            end
+        end
+    end
+})
+
+MoreSection:Space()
+
+local playerNames = {}
+for _, player in ipairs(Players:GetPlayers()) do
+    if player ~= LocalPlayer then
+        table.insert(playerNames, player.Name)
+    end
+end
+
+MoreSection:Dropdown({
+    Title = "تلپورت به پلیر",
+    Values = playerNames,
+    Callback = function(selected)
+        if not selected or selected == "" then return end
+        local targetPlayer = Players:FindFirstChild(selected)
+        if targetPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") then
+            LocalPlayer.Character.HumanoidRootPart.CFrame = targetPlayer.Character.HumanoidRootPart.CFrame
+            WindUI:Notify({
+                Title = "Teleport",
+                Content = "تلپورت به " .. selected,
+                Duration = 2,
+            })
+        end
+    end
+})
+
+MoreSection:Space()
+
+MoreSection:Toggle({
+    Title = "Anti AFK",
+    Desc = "جلوگیری از کیک شدن",
+    Value = false,
+    Callback = function(state)
+        antiAFKEnabled = state
+        if state then
+            enableAntiAFK()
+            WindUI:Notify({
+                Title = "Anti AFK",
+                Content = "فعال شد!",
+                Duration = 2,
+            })
+        else
+            disableAntiAFK()
+            WindUI:Notify({
+                Title = "Anti AFK",
+                Content = "غیرفعال شد!",
+                Duration = 2,
+            })
+        end
+    end
+})
+
+-- ═══════════════════════════════════════
+-- تب Auto Jobs (فقط بازی 10008162609)
+-- ═══════════════════════════════════════
+if IsAutoJobsGame then
+    local JobsTab = MainSection:Tab({
+        Title = "ایران آرپی",
+        Icon = "solar:wallet-money-bold",
+        IconColor = Color3.fromHex("#30FF6A"),
+        Border = true,
+    })
+
+    local HackCardSection = JobsTab:Section({
+        Title = "اتو گرفتن کارت هک",
+        Box = true,
+        BoxBorder = true,
+        Opened = true,
+    })
+
+    HackCardSection:Toggle({
+        Title = "Auto Hack Card",
+        Desc =  "هر 300 ثانیه کارت هک میخره و استفادش میکنه",
+        Value = false,
+        Callback = function(state)
+            isHackCardRunning = state
+            
+            if state then
+                task.spawn(hackCardLoop)
+                WindUI:Notify({
+                    Title = "Auto Hack Card",
+                    Content = "فعال شد!",
+                    Duration = 3,
+                })
+            else
+                WindUI:Notify({
+                    Title = "Auto Hack Card", 
+                    Content = "غیرفعال شد!",
+                    Duration = 3,
+                })
+            end
+        end
+    })
+
+    HackCardSection:Space()
+
+    HackCardSection:Button({
+        Title = "یکبار خرید کارت هک",
+        Desc = "فقط یکبار کارت هک میگیره",
+        Icon = "solar:card-bold",
+        Callback = function()
+            local success = tryBuyAndHack()
+            if success then
+                WindUI:Notify({
+                    Title = "Hack Card",
+                    Content = "موفق!",
+                    Duration = 3,
+                })
+            else
+                WindUI:Notify({
+                    Title = "Hack Card",
+                    Content = "ناموفق!",
+                    Duration = 3,
+                })
+            end
+        end
+    })
+
+    local AutoJobsSection = JobsTab:Section({
+        Title = "اتو انجام دادن شغل ها",
+        Box = true,
+        BoxBorder = true,
+        Opened = true,
+    })
+
+    AutoJobsSection:Toggle({
+        Title = "Auto Bus",
+        Desc = "اتوماتیک شغل اتوبوس رانی رو انجام میده(بهترین روش برای پول در اوردن)",
+        Value = false,
+        Callback = function(state)
+            isBusToggleOn = state
+            isBusRunning = state
+            
+            if state then
+                local success = startBus()
+                if success then
+                    WindUI:Notify({
+                        Title = "Auto Bus",
+                        Content = "شروع شد!",
+                        Duration = 3,
+                    })
+                else
+                    isBusToggleOn = false
+                    isBusRunning = false
+                    WindUI:Notify({
+                        Title = "Auto Bus",
+                        Content = "خطا در شروع!",
+                        Duration = 3,
+                    })
+                end
+            else
+                lastTeleportedPart = nil
+                WindUI:Notify({
+                    Title = "Auto Bus",
+                    Content = "متوقف شد!",
+                    Duration = 3,
+                })
+            end
+        end
+    })
+
+    AutoJobsSection:Space()
+
+    AutoJobsSection:Toggle({
+        Title = "Auto Cafe",
+        Desc = "اتوماتیک شغل باریستایی رو انجام میده",
+        Value = false,
+        Callback = function(state)
+            isCafeToggleOn = state
+            isCafeRunning = state
+            
+            if state then
+                startCafe()
+                WindUI:Notify({
+                    Title = "Auto Cafe",
+                    Content = "شروع شد!",
+                    Duration = 3,
+                })
+            else
+                WindUI:Notify({
+                    Title = "Auto Cafe",
+                    Content = "متوقف شد!",
+                    Duration = 3,
+                })
+            end
+        end
+    })
+
+    AutoJobsSection:Space()
+
+    AutoJobsSection:Toggle({
+        Title = "Auto Trash",
+        Desc = "اتوماتیک زباله جمع میکنه",
+        Value = false,
+        Callback = function(state)
+            isTrashToggleOn = state
+            isTrashRunning = state
+            
+            if state then
+                startTrash()
+                WindUI:Notify({
+                    Title = "Auto Trash",
+                    Content = "شروع شد!",
+                    Duration = 3,
+                })
+            else
+                WindUI:Notify({
+                    Title = "Auto Trash",
+                    Content = "متوقف شد!",
+                    Duration = 3,
+                })
+            end
+        end
+    })
+
+    AutoJobsSection:Space()
+
+    local Paragraph = AutoJobsSection:Paragraph({
+        Title = "قبل از استفاده اینجا رو بخون",
+        Desc = "لطفا گزینه ها بخش اتو انجام دادن شغل ها یکی از گزینه ها روشن کنید و هیچ وفت دو یا چند گزینه رو هزمان روشن نکنید و اینکه بخش اتو گرفتن کارت هک با همه گزینه ها سازگاری داره و میتونید همزان که یه گزینه روشن هم اون هم روشن کنید",
+        Color = "Red",
+        Image = "",
+        ImageSize = 30,
+        Thumbnail = "",
+        ThumbnailSize = 80,
+        Locked = false,
+    })
+
+end
+
+-- ═══════════════════════════════════════
+-- تب مارکوس تاور (فقط بازی 73400209769501)
+-- ═══════════════════════════════════════
+if IsTowerGame then
+    local TowerTab = MainSection:Tab({
+        Title = "مارکوس تاور",
+        Icon = "soup",
+        IconColor = Color3.fromHex("#FFD700"),
+        Border = true,
+    })
+
+    local MasterSection = TowerTab:Section({
+        Title = "گزینه های اصلی",
+        Box = true,
+        BoxBorder = true,
+        Opened = true,
+    })
+
+    MasterSection:Button({
+        Title = "فعالسازی گاد مود",
+        Callback = function() 
+            ActivateGodMode()
+        end
+    })
+
+    MasterSection:Space()
+
+    MasterSection:Button({
+        Title = "گرفتن تمام ایتم ها",
+        Callback = function()
+            local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+            if not hrp then return end
+            local originalPos = hrp.CFrame
+            WindUI:Notify({Title = "جمع کننده ایتم ها", Content = "در حال گرفتن تمام آیتم ها لطفا صبور باشید...", Duration = 3})
+            
+            local locList = {"گل رز", "سیب", "چیپس", "آیتم اضافه کردن سرعت", "هندونه", "گلنار"}
+            for _, loc in ipairs(locList) do
+                ExecuteAction(loc, false)
+                task.wait(0.1)
+            end
+            for itemName, _ in pairs(ItemData) do
+                ExecuteAction(itemName, false)
+                task.wait(0.1)
+            end
+            hrp.CFrame = originalPos
+            WindUI:Notify({Title = "جمع کننده ایتم ها", Content = "تمام ایتم ها جمع شد!", Duration = 3})
+        end
+    })
+
+    MasterSection:Space()
+
+    MasterSection:Toggle({
+        Title = "گرفتن تمام ایتم های اینونتوری پس از مرگ",
+        Value = false,
+        Callback = function(v) 
+            ReclaimEnabled = v
+            if v then
+                WindUI:Notify({
+                    Title = "Auto Reclaim",
+                    Content = "فعال شد!",
+                    Duration = 2,
+                })
+            else
+                WindUI:Notify({
+                    Title = "Auto Reclaim",
+                    Content = "غیرفعال شد!",
+                    Duration = 2,
+                })
+            end
+        end
+    })
+
+    local TeleportsSection = TowerTab:Section({
+        Title = "تلپورت ها",
+        Box = true,
+        BoxBorder = true,
+        Opened = true,
+    })
+
+    TeleportsSection:Dropdown({
+        Title = "انتخاب مکان",
+        Values = {"گل رز", "سیب", "چیپس", "آیتم اضافه کردن سرعت", "هندونه", "گلنار"},
+        Callback = function(selected)
+            if not selected or selected == "" then return end
+            local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+            if hrp then
+                local old = hrp.CFrame
+                ExecuteAction(selected, false)
+                WindUI:Notify({
+                    Title = "Teleport",
+                    Content = "تلپورت به " .. selected,
+                    Duration = 2,
+                })
+                task.wait(0.1)
+                hrp.CFrame = old
+            end
+        end
+    })
+
+    TeleportsSection:Space()
+
+    TeleportsSection:Dropdown({
+        Title = "ایتم های دستگاه غذا",
+        Values = {"Police Uniform", "Cola", "Sprite", "EpicSnack", "DrPepper", "Pepsi", "MDB", "Cookies", "Hershey", "Milk", "Lays", "OrangeJuice"},
+        Callback = function(selected)
+            if not selected or selected == "" then return end
+            local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+            if hrp then
+                local old = hrp.CFrame
+                ExecuteAction(selected, false)
+                WindUI:Notify({
+                    Title = "Item Collect",
+                    Content = "گرفتن " .. selected,
+                    Duration = 2,
+                })
+                task.wait(0.1)
+                hrp.CFrame = old
+            end
+        end
+    })
+
+    LocalPlayer.CharacterAdded:Connect(function(char)
+        if ReclaimEnabled and #History > 0 then
+            task.wait(2.5)
+            local hrp = char:WaitForChild("HumanoidRootPart")
+            local originalPos = hrp.CFrame
+            for _, actionName in pairs(History) do
+                ExecuteAction(actionName, true)
+                task.wait(0.1)
+            end
+            hrp.CFrame = originalPos
+            WindUI:Notify({Title = "جمع کننده ی ایتم های پس از مرگ", Content = "تمام ایتم ها دوباره گرفته شد", Duration = 2})
+        end
+    end)
+end
+
+WindUI:Notify({
+    Title = "Omlet Hub",
+    Content = "اسکریپت لود شد!",
+    Duration = 4,
+})
