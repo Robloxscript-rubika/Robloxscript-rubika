@@ -1,0 +1,158 @@
+-- Advanced Fly Script (Universal: PC & Mobile)
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+
+-- Settings
+local flySpeed = 50
+local flying = false
+local flyConnection
+
+-- Create GUI
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "FlyGui_Fixed"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.Parent = game.CoreGui
+
+local Frame = Instance.new("Frame")
+Frame.Size = UDim2.new(0, 130, 0, 90)
+Frame.Position = UDim2.new(0.5, -65, 0.1, 0)
+Frame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+Frame.BorderSizePixel = 0
+Frame.Active = true
+Frame.Draggable = true -- برای راحتی در موبایل و سیستم‌های قدیمی
+Frame.Parent = ScreenGui
+
+local UICorner = Instance.new("UICorner")
+UICorner.Parent = Frame
+
+local ToggleButton = Instance.new("TextButton")
+ToggleButton.Size = UDim2.new(1, -20, 0, 40)
+ToggleButton.Position = UDim2.new(0, 10, 0, 10)
+ToggleButton.BackgroundColor3 = Color3.fromRGB(255, 60, 60)
+ToggleButton.Text = "FLY: OFF"
+ToggleButton.TextColor3 = Color3.new(1, 1, 1)
+ToggleButton.Font = Enum.Font.GothamBold
+ToggleButton.TextSize = 16
+ToggleButton.Parent = Frame
+
+local SpeedLabel = Instance.new("TextLabel")
+SpeedLabel.Size = UDim2.new(1, 0, 0, 30)
+SpeedLabel.Position = UDim2.new(0, 0, 1, -35)
+SpeedLabel.BackgroundTransparency = 1
+SpeedLabel.Text = "Speed: " .. flySpeed
+SpeedLabel.TextColor3 = Color3.new(0.8, 0.8, 0.8)
+SpeedLabel.Font = Enum.Font.Gotham
+SpeedLabel.TextSize = 12
+SpeedLabel.Parent = Frame
+
+-- Core Flight Logic
+local function startFly()
+    local char = LocalPlayer.Character
+    if not char then return end
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if not hrp or not hum then return end
+
+    -- جلوگیری از انیمیشن افتادن و تداخل فیزیک
+    hum.PlatformStand = true
+
+    local bg = Instance.new("BodyGyro")
+    bg.P = 9e4
+    bg.MaxTorque = Vector3.new(9e9, 9e9, 9e9)
+    bg.CFrame = hrp.CFrame
+    bg.Parent = hrp
+
+    local bv = Instance.new("BodyVelocity")
+    bv.Velocity = Vector3.new(0, 0, 0)
+    bv.MaxForce = Vector3.new(9e9, 9e9, 9e9)
+    bv.Parent = hrp
+
+    flyConnection = RunService.RenderStepped:Connect(function()
+        local cam = workspace.CurrentCamera
+        if not flying or not hrp or not hum or not cam then 
+            stopFly()
+            return 
+        end
+
+        -- ایجاد بردار حرکت
+        local direction = Vector3.new(0, 0, 0)
+        
+        -- محاسبه ورودی (PC)
+        local forward = UserInputService:IsKeyDown(Enum.KeyCode.W) and 1 or (UserInputService:IsKeyDown(Enum.KeyCode.S) and -1 or 0)
+        local side = UserInputService:IsKeyDown(Enum.KeyCode.D) and 1 or (UserInputService:IsKeyDown(Enum.KeyCode.A) and -1 or 0)
+        local up = UserInputService:IsKeyDown(Enum.KeyCode.Space) and 1 or (UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) and -1 or 0)
+
+        -- محاسبه ورودی (Mobile / Joystick)
+        -- اگر از جوی‌استیک استفاده شود، مقادیر جایگزین می‌شوند
+        if hum.MoveDirection.Magnitude > 0 then
+            -- استخراج مقدار جلو/عقب و چپ/راست از MoveDirection نسبت به دوربین
+            local relativeMove = cam.CFrame:VectorToObjectSpace(hum.MoveDirection)
+            forward = -relativeMove.Z
+            side = relativeMove.X
+        end
+
+        -- جادوی اصلی: حرکت دقیقاً به سمت زاویه دوربین
+        -- ما بردار نگاه دوربین (LookVector) را در مقدار حرکت ضرب می‌کنیم
+        direction = (cam.CFrame.LookVector * forward) + (cam.CFrame.RightVector * side) + (Vector3.new(0, 1, 0) * up)
+
+        -- آپدیت چرخش و سرعت
+        bg.CFrame = cam.CFrame
+        if direction.Magnitude > 0 then
+            bv.Velocity = direction.Unit * flySpeed
+        else
+            bv.Velocity = Vector3.new(0, 0, 0)
+        end
+    end)
+end
+
+function stopFly()
+    flying = false
+    if flyConnection then flyConnection:Disconnect() end
+    
+    local char = LocalPlayer.Character
+    if char then
+        local hum = char:FindFirstChildOfClass("Humanoid")
+        if hum then hum.PlatformStand = false end
+        
+        local hrp = char:FindFirstChild("HumanoidRootPart")
+        if hrp then
+            for _, v in pairs(hrp:GetChildren()) do
+                if v:IsA("BodyGyro") or v:IsA("BodyVelocity") then v:Destroy() end
+            end
+        end
+    end
+end
+
+-- Toggle
+ToggleButton.MouseButton1Click:Connect(function()
+    flying = not flying
+    if flying then
+        ToggleButton.Text = "FLY: ON"
+        ToggleButton.BackgroundColor3 = Color3.fromRGB(60, 255, 60)
+        startFly()
+    else
+        ToggleButton.Text = "FLY: OFF"
+        ToggleButton.BackgroundColor3 = Color3.fromRGB(255, 60, 60)
+        stopFly()
+    end
+end)
+
+-- Speed Control (+ / -)
+UserInputService.InputBegan:Connect(function(input, gpe)
+    if gpe then return end
+    if input.KeyCode == Enum.KeyCode.Equals or input.KeyCode == Enum.KeyCode.Plus then
+        flySpeed = math.min(flySpeed + 10, 500)
+        SpeedLabel.Text = "Speed: " .. flySpeed
+    elseif input.KeyCode == Enum.KeyCode.Minus then
+        flySpeed = math.max(flySpeed - 10, 5)
+        SpeedLabel.Text = "Speed: " .. flySpeed
+    end
+end)
+
+-- Respawn Fix
+LocalPlayer.CharacterAdded:Connect(function()
+    task.wait(0.5)
+    if flying then startFly() end
+end)
