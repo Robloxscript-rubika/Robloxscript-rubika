@@ -1,0 +1,399 @@
+--[[
+    👑 GOD MODE FARM + INVISIBLE SPAWN FINDER (FIXED)
+    ✅ Feature: Finds invisible spawn parts accurately
+    ✅ Visual: Shows a Blue Ball where the spawn point is
+    ✅ Attack: Turbo God Mode
+]]
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+local Workspace = game:GetService("Workspace")
+
+local Plr = Players.LocalPlayer
+
+-- ==============================================================================
+-- ⚙️ CONFIG
+-- ==============================================================================
+local Settings = {
+    AttackKey = "92868f18",
+    BaseSpeed = 0.01,
+    RandomFactor = 0.015,
+    HoverDistance = 25,      -- ارتفاع وقتی داره میجنگه
+    WaitHeight = 15,         -- ارتفاع وقتی منتظر اسپانه (نزدیک تر باشه بهتره)
+    FlightSpeed = 315,
+    HitboxSize = 60
+}
+
+-- ==============================================================================
+-- 📜 DATABASE
+-- ==============================================================================
+local PlaceId = game.PlaceId
+local Sea = 1
+if PlaceId == 4442272183 then Sea = 2 elseif PlaceId == 7449423635 then Sea = 3 end
+
+local Database = {}
+
+-- لیست دقیق
+if Sea == 1 then
+    Database = {
+        {Lvl = 1, Mob = "Bandit", QName = "BanditQuest1", QId = 1, Pos = CFrame.new(1060, 17, 1549)},
+        {Lvl = 10, Mob = "Monkey", QName = "JungleQuest", QId = 1, Pos = CFrame.new(-1602, 37, 154)},
+        {Lvl = 15, Mob = "Gorilla", QName = "JungleQuest", QId = 2, Pos = CFrame.new(-1602, 37, 154)},
+        {Lvl = 20, Mob = "Gorilla King", QName = "JungleQuest", QId = 3, Pos = CFrame.new(-1131, 6, 1642), IsBoss = true},
+        {Lvl = 30, Mob = "Pirate", QName = "BuggyQuest1", QId = 1, Pos = CFrame.new(-1140, 5, 3830)},
+        {Lvl = 40, Mob = "Brute", QName = "BuggyQuest1", QId = 2, Pos = CFrame.new(-1140, 5, 3830)},
+        {Lvl = 55, Mob = "Bobby", QName = "BuggyQuest1", QId = 3, Pos = CFrame.new(-1140, 5, 3830), IsBoss = true},
+        {Lvl = 60, Mob = "Desert Bandit", QName = "DesertQuest", QId = 1, Pos = CFrame.new(897, 7, 4390)},
+        {Lvl = 75, Mob = "Desert Officer", QName = "DesertQuest", QId = 2, Pos = CFrame.new(897, 7, 4390)},
+        {Lvl = 90, Mob = "Snow Bandit", QName = "SnowQuest", QId = 1, Pos = CFrame.new(1386, 87, -1299)},
+        {Lvl = 105, Mob = "Snowman", QName = "SnowQuest", QId = 2, Pos = CFrame.new(1386, 87, -1299)},
+        {Lvl = 115, Mob = "Yeti", QName = "SnowQuest", QId = 3, Pos = CFrame.new(1386, 87, -1299), IsBoss = true},
+        {Lvl = 120, Mob = "Chief Petty Officer", QName = "MarineQuest2", QId = 1, Pos = CFrame.new(-5036, 28, 4325)},
+        {Lvl = 130, Mob = "Vice Admiral", QName = "MarineQuest2", QId = 2, Pos = CFrame.new(-5036, 28, 4325), IsBoss = true},
+        {Lvl = 150, Mob = "Sky Bandit", QName = "SkyQuest", QId = 1, Pos = CFrame.new(-4840, 717, -2620)},
+        {Lvl = 175, Mob = "Dark Master", QName = "SkyQuest", QId = 2, Pos = CFrame.new(-4840, 717, -2620)},
+        {Lvl = 190, Mob = "Prisoner", QName = "PrisonerQuest", QId = 1, Pos = CFrame.new(5308, 2, 475)},
+        {Lvl = 210, Mob = "Warden", QName = "PrisonerQuest", QId = 2, Pos = CFrame.new(5308, 2, 475), IsBoss = true},
+        {Lvl = 220, Mob = "Chief Warden", QName = "PrisonerQuest", QId = 3, Pos = CFrame.new(5308, 2, 475), IsBoss = true},
+        {Lvl = 230, Mob = "Swan", QName = "PrisonerQuest", QId = 4, Pos = CFrame.new(5308, 2, 475), IsBoss = true},
+        {Lvl = 225, Mob = "Toga Warrior", QName = "ColosseumQuest", QId = 1, Pos = CFrame.new(-1576, 8, -2985)},
+        {Lvl = 275, Mob = "Gladiator", QName = "ColosseumQuest", QId = 2, Pos = CFrame.new(-1576, 8, -2985)},
+        {Lvl = 300, Mob = "Military Soldier", QName = "MagmaQuest", QId = 1, Pos = CFrame.new(-5315, 12, 8516)},
+        {Lvl = 325, Mob = "Military Spy", QName = "MagmaQuest", QId = 2, Pos = CFrame.new(-5315, 12, 8516)},
+        {Lvl = 350, Mob = "Magma Admiral", QName = "MagmaQuest", QId = 3, Pos = CFrame.new(-5315, 12, 8516), IsBoss = true},
+        {Lvl = 375, Mob = "Fishman Warrior", QName = "FishmanQuest", QId = 1, Pos = CFrame.new(61122, 19, 1568)},
+        {Lvl = 400, Mob = "Fishman Commando", QName = "FishmanQuest", QId = 2, Pos = CFrame.new(61122, 19, 1568)},
+        {Lvl = 425, Mob = "Fishman Lord", QName = "FishmanQuest", QId = 3, Pos = CFrame.new(61122, 19, 1568), IsBoss = true},
+        {Lvl = 450, Mob = "God's Guard", QName = "SkyExp1Quest", QId = 1, Pos = CFrame.new(-4722, 845, -1951)},
+        {Lvl = 475, Mob = "Shanda", QName = "SkyExp1Quest", QId = 2, Pos = CFrame.new(-7860, 5545, -381)},
+        {Lvl = 500, Mob = "Wysper", QName = "SkyExp1Quest", QId = 3, Pos = CFrame.new(-7860, 5545, -381), IsBoss = true},
+        {Lvl = 525, Mob = "Royal Squad", QName = "SkyExp2Quest", QId = 1, Pos = CFrame.new(-7904, 5636, -1412)},
+        {Lvl = 550, Mob = "Royal Soldier", QName = "SkyExp2Quest", QId = 2, Pos = CFrame.new(-7904, 5636, -1412)},
+        {Lvl = 575, Mob = "Thunder God", QName = "SkyExp2Quest", QId = 3, Pos = CFrame.new(-7904, 5636, -1412), IsBoss = true},
+        {Lvl = 625, Mob = "Galley Pirate", QName = "FountainQuest", QId = 1, Pos = CFrame.new(5259, 39, 4050)},
+        {Lvl = 650, Mob = "Galley Captain", QName = "FountainQuest", QId = 2, Pos = CFrame.new(5259, 39, 4050)},
+        {Lvl = 675, Mob = "Cyborg", QName = "FountainQuest", QId = 3, Pos = CFrame.new(5259, 39, 4050), IsBoss = true},
+        {Lvl = 700, Mob = "Ice Admiral", QName = "FountainQuest", QId = 4, Pos = CFrame.new(5259, 39, 4050), IsBoss = true},
+    }
+elseif Sea == 2 then
+    Database = {
+        {Lvl = 700, Mob = "Raider", QName = "Area1Quest", QId = 1, Pos = CFrame.new(-425, 73, 1835)},
+        {Lvl = 725, Mob = "Mercenary", QName = "Area1Quest", QId = 2, Pos = CFrame.new(-425, 73, 1835)},
+        {Lvl = 750, Mob = "Diamond", QName = "Area1Quest", QId = 3, Pos = CFrame.new(-425, 73, 1835), IsBoss = true},
+        {Lvl = 775, Mob = "Swan Pirate", QName = "Area1Quest", QId = 4, Pos = CFrame.new(-425, 73, 1835)},
+        {Lvl = 800, Mob = "Factory Staff", QName = "Area2Quest", QId = 1, Pos = CFrame.new(634, 75, 949)},
+        {Lvl = 850, Mob = "Jeremy", QName = "Area2Quest", QId = 2, Pos = CFrame.new(634, 75, 949), IsBoss = true},
+        {Lvl = 875, Mob = "Marine Lieutenant", QName = "MarineQuest3", QId = 1, Pos = CFrame.new(-2442, 75, -3219)},
+        {Lvl = 900, Mob = "Marine Captain", QName = "MarineQuest3", QId = 2, Pos = CFrame.new(-2442, 75, -3219)},
+        {Lvl = 925, Mob = "Fajita", QName = "MarineQuest3", QId = 3, Pos = CFrame.new(-2442, 75, -3219), IsBoss = true},
+        {Lvl = 950, Mob = "Zombie", QName = "ZombieQuest", QId = 1, Pos = CFrame.new(-5492, 49, -794)},
+        {Lvl = 975, Mob = "Vampire", QName = "ZombieQuest", QId = 2, Pos = CFrame.new(-5492, 49, -794)},
+        {Lvl = 1000, Mob = "Snow Trooper", QName = "SnowMountainQuest", QId = 1, Pos = CFrame.new(606, 402, -5369)},
+        {Lvl = 1050, Mob = "Winter Warrior", QName = "SnowMountainQuest", QId = 2, Pos = CFrame.new(606, 402, -5369)},
+        {Lvl = 1100, Mob = "Lab Subordinate", QName = "IceSideQuest", QId = 1, Pos = CFrame.new(-6061, 16, -4903)},
+        {Lvl = 1125, Mob = "Horned Warrior", QName = "IceSideQuest", QId = 2, Pos = CFrame.new(-6061, 16, -4903)},
+        {Lvl = 1150, Mob = "Smoke Admiral", QName = "IceSideQuest", QId = 3, Pos = CFrame.new(-6061, 16, -4903), IsBoss = true},
+        {Lvl = 1175, Mob = "Magma Ninja", QName = "FireSideQuest", QId = 1, Pos = CFrame.new(-5430, 16, -5295)},
+        {Lvl = 1200, Mob = "Lava Pirate", QName = "FireSideQuest", QId = 2, Pos = CFrame.new(-5430, 16, -5295)},
+        {Lvl = 1250, Mob = "Ship Deckhand", QName = "ShipQuest1", QId = 1, Pos = CFrame.new(921, 126, 32832)},
+        {Lvl = 1275, Mob = "Ship Engineer", QName = "ShipQuest1", QId = 2, Pos = CFrame.new(921, 126, 32832)},
+        {Lvl = 1300, Mob = "Ship Steward", QName = "ShipQuest2", QId = 1, Pos = CFrame.new(912, 126, 33198)},
+        {Lvl = 1325, Mob = "Ship Officer", QName = "ShipQuest2", QId = 2, Pos = CFrame.new(912, 126, 33198)},
+        {Lvl = 1350, Mob = "Arctic Warrior", QName = "FrostQuest", QId = 1, Pos = CFrame.new(6115, 29, -6222)},
+        {Lvl = 1375, Mob = "Snow Lurker", QName = "FrostQuest", QId = 2, Pos = CFrame.new(6115, 29, -6222)},
+        {Lvl = 1400, Mob = "Awakened Ice Admiral", QName = "FrostQuest", QId = 3, Pos = CFrame.new(6115, 29, -6222), IsBoss = true},
+        {Lvl = 1425, Mob = "Sea Soldier", QName = "ForgottenQuest", QId = 1, Pos = CFrame.new(-3053, 237, -10146)},
+        {Lvl = 1450, Mob = "Water Fighter", QName = "ForgottenQuest", QId = 2, Pos = CFrame.new(-3053, 237, -10146)},
+        {Lvl = 1475, Mob = "Tide Keeper", QName = "ForgottenQuest", QId = 3, Pos = CFrame.new(-3053, 237, -10146), IsBoss = true},
+    }
+elseif Sea == 3 then
+    Database = {
+        {Lvl = 1500, Mob = "Pirate Millionaire", QName = "PiratePortQuest", QId = 1, Pos = CFrame.new(-288, 43, 5433)},
+        {Lvl = 1525, Mob = "Pistol Billionaire", QName = "PiratePortQuest", QId = 2, Pos = CFrame.new(-288, 43, 5433)},
+        {Lvl = 1550, Mob = "Stone", QName = "PiratePortQuest", QId = 3, Pos = CFrame.new(-288, 43, 5433), IsBoss = true},
+        {Lvl = 1575, Mob = "Dragon Crew Warrior", QName = "AmazonQuest", QId = 1, Pos = CFrame.new(5833, 52, -1103)},
+        {Lvl = 1600, Mob = "Dragon Crew Archer", QName = "AmazonQuest", QId = 2, Pos = CFrame.new(5833, 52, -1103)},
+        {Lvl = 1625, Mob = "Female Islander", QName = "AmazonQuest2", QId = 1, Pos = CFrame.new(5449, 602, 750)},
+        {Lvl = 1650, Mob = "Giant Islander", QName = "AmazonQuest2", QId = 2, Pos = CFrame.new(5449, 602, 750)},
+        {Lvl = 1675, Mob = "Island Empress", QName = "AmazonQuest2", QId = 3, Pos = CFrame.new(5449, 602, 750), IsBoss = true},
+        {Lvl = 1700, Mob = "Marine Commodore", QName = "MarineTreeIsland", QId = 1, Pos = CFrame.new(2182, 28, -6738)},
+        {Lvl = 1725, Mob = "Marine Rear Admiral", QName = "MarineTreeIsland", QId = 2, Pos = CFrame.new(2182, 28, -6738)},
+        {Lvl = 1750, Mob = "Kilo Admiral", QName = "MarineTreeIsland", QId = 3, Pos = CFrame.new(2182, 28, -6738), IsBoss = true},
+        {Lvl = 1775, Mob = "Fishman Raider", QName = "DeepForestIsland", QId = 1, Pos = CFrame.new(-10582, 331, -8758)},
+        {Lvl = 1800, Mob = "Fishman Captain", QName = "DeepForestIsland", QId = 2, Pos = CFrame.new(-10582, 331, -8758)},
+        {Lvl = 1825, Mob = "Forest Pirate", QName = "DeepForestIsland2", QId = 1, Pos = CFrame.new(-10332, 331, -8912)},
+        {Lvl = 1850, Mob = "Mythological Pirate", QName = "DeepForestIsland2", QId = 2, Pos = CFrame.new(-10332, 331, -8912)},
+        {Lvl = 1875, Mob = "Captain Elephant", QName = "DeepForestIsland2", QId = 3, Pos = CFrame.new(-10332, 331, -8912), IsBoss = true},
+        {Lvl = 1900, Mob = "Jungle Pirate", QName = "HauntedQuest1", QId = 1, Pos = CFrame.new(-9515, 142, 5537)},
+        {Lvl = 1925, Mob = "Musketeer Pirate", QName = "HauntedQuest1", QId = 2, Pos = CFrame.new(-9515, 142, 5537)},
+        {Lvl = 1950, Mob = "Beautiful Pirate", QName = "HauntedQuest1", QId = 3, Pos = CFrame.new(-9515, 142, 5537), IsBoss = true},
+        {Lvl = 1975, Mob = "Reborn Skeleton", QName = "HauntedQuest2", QId = 1, Pos = CFrame.new(-9515, 142, 5537)},
+        {Lvl = 2000, Mob = "Living Zombie", QName = "HauntedQuest2", QId = 2, Pos = CFrame.new(-9515, 142, 5537)},
+        {Lvl = 2025, Mob = "Demonic Soul", QName = "HauntedQuest3", QId = 1, Pos = CFrame.new(-9515, 142, 5537)},
+        {Lvl = 2075, Mob = "Posessed Mummy", QName = "HauntedQuest3", QId = 2, Pos = CFrame.new(-9515, 142, 5537)},
+        {Lvl = 2125, Mob = "Peanut Scout", QName = "PeanutQuest", QId = 1, Pos = CFrame.new(-2022, 37, -12025)},
+        {Lvl = 2150, Mob = "Peanut President", QName = "PeanutQuest", QId = 2, Pos = CFrame.new(-2022, 37, -12025)},
+        {Lvl = 2200, Mob = "Ice Cream Chef", QName = "IceCreamIslandQuest", QId = 1, Pos = CFrame.new(-818, 65, -10965)},
+        {Lvl = 2225, Mob = "Ice Cream Commander", QName = "IceCreamIslandQuest", QId = 2, Pos = CFrame.new(-818, 65, -10965)},
+        {Lvl = 2250, Mob = "Ice Cream Queen", QName = "IceCreamIslandQuest", QId = 3, Pos = CFrame.new(-818, 65, -10965), IsBoss = true},
+        {Lvl = 2275, Mob = "Cookie Crafter", QName = "CakeQuest1", QId = 1, Pos = CFrame.new(-2020, 37, -12025)},
+        {Lvl = 2300, Mob = "Cake Guard", QName = "CakeQuest1", QId = 2, Pos = CFrame.new(-2020, 37, -12025)},
+        {Lvl = 2325, Mob = "Baking Staff", QName = "CakeQuest2", QId = 1, Pos = CFrame.new(-1926, 37, -12850)},
+        {Lvl = 2350, Mob = "Head Baker", QName = "CakeQuest2", QId = 2, Pos = CFrame.new(-1926, 37, -12850)},
+        {Lvl = 2400, Mob = "Cocoa Warrior", QName = "CandySummerQuest", QId = 1, Pos = CFrame.new(-1149, 13, -12836)},
+        {Lvl = 2425, Mob = "Chocolate Bar Battler", QName = "CandySummerQuest", QId = 2, Pos = CFrame.new(-1149, 13, -12836)},
+        {Lvl = 2450, Mob = "Sweet Thief", QName = "CandySummerQuest", QId = 2, Pos = CFrame.new(-1149, 13, -12836)},
+        {Lvl = 2475, Mob = "Candy Rebel", QName = "CandySummerQuest", QId = 2, Pos = CFrame.new(-1149, 13, -12836)}
+    }
+end
+
+-- ==============================================================================
+-- ⚔️ TURBO ATTACK
+-- ==============================================================================
+local Net = ReplicatedStorage:WaitForChild("Modules"):WaitForChild("Net")
+local RegisterHit = Net:WaitForChild("RE/RegisterHit")
+local RegisterAttack = Net:WaitForChild("RE/RegisterAttack")
+
+local Farming = true
+local CurrentTarget = nil
+
+local function GetSuperFastDelay()
+    return Settings.BaseSpeed + (math.random() * Settings.RandomFactor)
+end
+
+task.spawn(function()
+    while true do
+        if Farming and CurrentTarget and CurrentTarget.Mode == "Mob" and CurrentTarget.Instance then
+            local Enemy = CurrentTarget.Instance
+            if Enemy and Enemy:FindFirstChild("Humanoid") and Enemy.Humanoid.Health > 0 then
+                local Root = Enemy:FindFirstChild("HumanoidRootPart")
+                if Root then
+                    RegisterAttack:FireServer(0)
+                    RegisterHit:FireServer(Root, {}, nil, Settings.AttackKey)
+                    RegisterHit:FireServer(Root, {}, nil, Settings.AttackKey)
+                end
+            end
+        end
+        task.wait(GetSuperFastDelay())
+    end
+end)
+
+local function PrepareEnemy(Enemy)
+    pcall(function()
+        if not Enemy:FindFirstChild("HumanoidRootPart") then return end
+        local Root = Enemy.HumanoidRootPart
+        
+        Root.Size = Vector3.new(Settings.HitboxSize, Settings.HitboxSize, Settings.HitboxSize)
+        Root.Transparency = 0.5
+        Root.CanCollide = false
+        Root.Anchored = true
+        Root.Color = Color3.fromRGB(255, 0, 0)
+        Root.Material = Enum.Material.ForceField
+        
+        if Enemy:FindFirstChild("Humanoid") then
+            Enemy.Humanoid.WalkSpeed = 0
+            Enemy.Humanoid.JumpPower = 0
+            if Enemy.Humanoid:FindFirstChild("Animator") then
+                Enemy.Humanoid.Animator:Destroy()
+            end
+        end
+    end)
+end
+
+-- ==============================================================================
+-- 🛠️ AGGRESSIVE SPAWN FINDER (FIXED)
+-- ==============================================================================
+local function CreateVisualMarker(Cframe)
+    -- این تابع یک توپ آبی موقت میسازد تا ببینید کجا را پیدا کرده
+    local p = Instance.new("Part")
+    p.Shape = Enum.PartType.Ball
+    p.Color = Color3.fromRGB(0, 0, 255)
+    p.Transparency = 0.5
+    p.Size = Vector3.new(5,5,5)
+    p.Anchored = true
+    p.CanCollide = false
+    p.CFrame = Cframe
+    p.Parent = Workspace
+    game:GetService("Debris"):AddItem(p, 2) -- بعد از 2 ثانیه حذف میشه
+end
+
+local function GetAggressiveSpawn(MobName)
+    -- روش 1: جستجو در پوشه اصلی دشمن‌ها (استاندارد Blox Fruits)
+    if Workspace:FindFirstChild("_WorldOrigin") and Workspace._WorldOrigin:FindFirstChild("EnemySpawns") then
+        for _, v in pairs(Workspace._WorldOrigin.EnemySpawns:GetChildren()) do
+            -- جستجوی بخشی از اسم (Partial Match)
+            if string.find(v.Name, MobName) then
+                return v.CFrame
+            end
+        end
+    end
+    
+    -- روش 2: جستجو در کل مپ برای پارت‌های همنام (پشتیبان)
+    -- بعضی وقتا پارت اسپان توی _WorldOrigin نیست
+    for _, v in pairs(Workspace:GetDescendants()) do
+        if v:IsA("BasePart") and string.find(v.Name, MobName) and not v.Parent:FindFirstChild("Humanoid") then
+             return v.CFrame
+        end
+    end
+    
+    return nil
+end
+
+local function CheckMobLive(MobName)
+    for _, v in pairs(Workspace.Enemies:GetChildren()) do
+        if string.find(v.Name, MobName) and v:FindFirstChild("Humanoid") and v.Humanoid.Health > 0 then
+            return true
+        end
+    end
+    return false
+end
+
+local function GetSmartQuest()
+    local MyLvl = Plr.Data.Level.Value
+    local BestData = nil
+    local BestIndex = 0
+    for i, data in ipairs(Database) do
+        if MyLvl >= data.Lvl then
+            BestData = data
+            BestIndex = i
+        end
+    end
+    
+    if BestData and BestData.IsBoss then
+        -- منطق باس: اگر باس زنده نیست، بیخیالش شو
+        if not CheckMobLive(BestData.Mob) then
+            if Database[BestIndex - 1] then
+                return Database[BestIndex - 1]
+            end
+        end
+    end
+    return BestData
+end
+
+local function HasQuest()
+    local gui = Plr.PlayerGui:FindFirstChild("Main")
+    if gui and gui:FindFirstChild("Quest") then return gui.Quest.Visible end
+    return false
+end
+
+local function EquipWeapon()
+    pcall(function()
+        if not Plr.Character then return end
+        local hum = Plr.Character:FindFirstChild("Humanoid")
+        if not hum then return end
+        local holding = Plr.Character:FindFirstChildOfClass("Tool")
+        if not holding or (holding.ToolTip ~= "Melee" and holding.ToolTip ~= "Sword") then
+            for _, t in pairs(Plr.Backpack:GetChildren()) do
+                if t:IsA("Tool") and (t.ToolTip == "Melee" or t.ToolTip == "Sword") then
+                    hum:EquipTool(t) break
+                end
+            end
+        end
+    end)
+end
+
+-- ==============================================================================
+-- 🛸 MOVEMENT & MAIN LOGIC
+-- ==============================================================================
+local LastKnownSpawn = nil
+
+RunService.Stepped:Connect(function()
+    if not Farming or not Plr.Character or not Plr.Character:FindFirstChild("HumanoidRootPart") then return end
+    
+    for _, v in pairs(Plr.Character:GetDescendants()) do
+        if v:IsA("BasePart") then v.CanCollide = false end
+    end
+    
+    local Root = Plr.Character.HumanoidRootPart
+    Root.Velocity = Vector3.new(0,0,0)
+    
+    local Dest = nil
+    if CurrentTarget then
+        if CurrentTarget.Mode == "NPC" or CurrentTarget.Mode == "Wait" then
+            Dest = CurrentTarget.CFrame
+        elseif CurrentTarget.Mode == "Mob" and CurrentTarget.Instance and CurrentTarget.Instance:FindFirstChild("HumanoidRootPart") then
+            Dest = CurrentTarget.Instance.HumanoidRootPart.CFrame * CFrame.new(0, Settings.HoverDistance, 0) * CFrame.Angles(math.rad(-90), 0, 0)
+        end
+    end
+    
+    if Dest then
+        local dist = (Root.Position - Dest.Position).Magnitude
+        local speed = Settings.FlightSpeed
+        if dist < 50 then speed = 100 end
+        local info = TweenInfo.new(dist / speed, Enum.EasingStyle.Linear)
+        TweenService:Create(Root, info, {CFrame = Dest}):Play()
+    end
+end)
+
+task.spawn(function()
+    while task.wait(0.5) do
+        pcall(function()
+            if not Farming then return end
+            
+            local QData = GetSmartQuest()
+            if not QData then return end
+            
+            if HasQuest() then
+                -- [[ KILL MODE ]]
+                EquipWeapon()
+                local foundMob = nil
+                local minDist = math.huge
+                
+                -- پیدا کردن ماب زنده
+                for _, v in pairs(Workspace.Enemies:GetChildren()) do
+                    if string.find(v.Name, QData.Mob) and v:FindFirstChild("Humanoid") and v.Humanoid.Health > 0 and v:FindFirstChild("HumanoidRootPart") then
+                        local dist = (Plr.Character.HumanoidRootPart.Position - v.HumanoidRootPart.Position).Magnitude
+                        if dist < minDist then minDist = dist foundMob = v end
+                    end
+                end
+                
+                if foundMob then
+                    -- ماب زنده پیدا شد
+                    PrepareEnemy(foundMob)
+                    CurrentTarget = {Mode = "Mob", Instance = foundMob}
+                    -- ذخیره مکان آخرین ماب زنده (بهترین نقطه برای انتظار)
+                    LastKnownSpawn = foundMob.HumanoidRootPart.CFrame
+                else
+                    -- ماب نیست (باید منتظر اسپان باشیم)
+                    -- اولویت 1: پارت نامرئی اسپان
+                    local InvisibleSpawn = GetAggressiveSpawn(QData.Mob)
+                    
+                    if InvisibleSpawn then
+                        -- پیدا شد! برو اونجا و یک نشونه بذار
+                        -- CreateVisualMarker(InvisibleSpawn) -- اگر خواستی توپ آبی رو ببینی اینو فعال کن
+                        CurrentTarget = {Mode = "Wait", CFrame = InvisibleSpawn * CFrame.new(0, Settings.WaitHeight, 0)}
+                    
+                    elseif LastKnownSpawn then
+                        -- اگر پارت نامرئی پیدا نشد، برو جایی که آخرین ماب رو کشتی
+                        CurrentTarget = {Mode = "Wait", CFrame = LastKnownSpawn * CFrame.new(0, Settings.WaitHeight, 0)}
+                    else
+                         -- اگر هیچی نبود، برو نزدیک NPC
+                        CurrentTarget = {Mode = "Wait", CFrame = QData.Pos * CFrame.new(0, 50, 0)}
+                    end
+                end
+            else
+                -- [[ QUEST MODE ]]
+                LastKnownSpawn = nil
+                CurrentTarget = {Mode = "NPC", CFrame = QData.Pos}
+                local dist = (Plr.Character.HumanoidRootPart.Position - QData.Pos.Position).Magnitude
+                if dist < 5 then
+                    ReplicatedStorage.Remotes.CommF_:InvokeServer("StartQuest", QData.QName, QData.QId)
+                    task.wait(1)
+                end
+            end
+        end)
+    end
+end)
+
+-- Auto Haki
+task.spawn(function()
+    while task.wait(5) do
+        pcall(function()
+            if not Plr.Character:FindFirstChild("HasBuso") then
+                ReplicatedStorage.Remotes.CommF_:InvokeServer("Buso")
+            end
+        end)
+    end
+end)
