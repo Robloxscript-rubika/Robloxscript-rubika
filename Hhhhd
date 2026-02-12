@@ -19,14 +19,15 @@ local Whitelist = {
     "Salariran774",
     "lilvekika",
     "boompap_4",
-    "TITAB_TEST545"
-    "parararrararststtsts"
-    "c00berss930s"
-    "Amirsan5i"
-    "aliasgh_945429"
-    "sjjanw1o"
-    "radinalfa23312"
-    "c00berss930s"
+    "TITAB_TEST545",
+    "parararrararststtsts",
+    "c00berss930s",
+    "Amirsan5i",
+    "aliasgh_945429",
+    "sjjanw1o",
+    "radinalfa23312",
+    "c00berss930s",
+    "lyfoykgcylgklh"
 }
 
 local function IsWhitelisted(playerName)
