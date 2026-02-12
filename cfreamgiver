@@ -1,0 +1,54 @@
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
+
+local LocalPlayer = Players.LocalPlayer
+local Mouse = LocalPlayer:GetMouse()
+
+game.StarterGui:SetCore("SendNotification", {
+    Title = "CFrame Logger ON";
+    Text = "Click anywhere to copy coords!";
+    Duration = 5;
+})
+
+local function CreateVisualMarker(position)
+    local part = Instance.new("Part")
+    part.Name = "DebugMarker"
+    part.Shape = Enum.PartType.Ball
+    part.Size = Vector3.new(1, 1, 1)
+    part.Color = Color3.fromRGB(0, 255, 0) -- سبز
+    part.Material = Enum.Material.Neon
+    part.Anchored = true
+    part.CanCollide = false
+    part.Position = position
+    part.Parent = Workspace
+    
+    game:GetService("Debris"):AddItem(part, 3)
+end
+
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then -- چپ کلیک
+        local hit = Mouse.Hit
+        local x = math.round(hit.Position.X)
+        local y = math.round(hit.Position.Y) + 3 
+        local z = math.round(hit.Position.Z)
+
+       
+        local cframeString = string.format("CFrame.new(%d, %d, %d)", x, y, z)
+
+        print("📍 LOCATION: " .. cframeString)
+        
+        pcall(function()
+            setclipboard(cframeString)
+        end)
+
+        CreateVisualMarker(hit.Position)
+              
+        game.StarterGui:SetCore("SendNotification", {
+            Title = "Copied!";
+            Text = cframeString;
+            Duration = 2;
+        })
+    end
+end)
