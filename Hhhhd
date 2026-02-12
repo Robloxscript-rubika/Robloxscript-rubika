@@ -27,7 +27,9 @@ local Whitelist = {
     "sjjanw1o",
     "radinalfa23312",
     "c00berss930s",
-    "lyfoykgcylgklh"
+    "lyfoykgcylgklh",
+    "MOEIN_VOID",
+    "pls_fr188"
 }
 
 local function IsWhitelisted(playerName)
