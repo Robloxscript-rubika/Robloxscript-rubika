@@ -27,9 +27,6 @@ return function(Settings, WindUI, Net, ReplicatedStorage, Workspace, TweenServic
         AttackMethod = "Click",
         
         BossInLevelUp = true,
-        
-        TravelRequestSent = false,
-        TravelComplete = false,
     }
     
     local SpawnCache = {}
@@ -37,11 +34,11 @@ return function(Settings, WindUI, Net, ReplicatedStorage, Workspace, TweenServic
     local Sea = 0
     
     -- ═══════════════════════════════════════
-    -- تشخیص دریا (اصلاح شده)
+    -- تشخیص دریا 
     -- ═══════════════════════════════════════
     local PlaceId = game.PlaceId
     if PlaceId == 2753915549 then Sea = 1
-    elseif PlaceId == 4442272183 then Sea = 2 -- آیدی دریای دوم اصلاح شد
+    elseif PlaceId == 4442272183 then Sea = 2
     elseif PlaceId == 100117331123089 then Sea = 3 end
     
     -- ═══════════════════════════════════════
@@ -108,10 +105,13 @@ return function(Settings, WindUI, Net, ReplicatedStorage, Workspace, TweenServic
             {Lvl=1150,Mob="Smoke Admiral",QName="IceSideQuest",QId=3,Pos=CFrame.new(-6230,81,-4850),IsBoss=true},
             {Lvl=1175,Mob="Magma Ninja",QName="FireSideQuest",QId=1,Pos=CFrame.new(-5405,29,-5370)},
             {Lvl=1200,Mob="Lava Pirate",QName="FireSideQuest",QId=2,Pos=CFrame.new(-5405,29,-5370)},
+            
+            -- Cursed Ship Quests
             {Lvl=1250,Mob="Ship Deckhand",QName="ShipQuest1",QId=1,Pos=CFrame.new(921,126,32832)},
             {Lvl=1275,Mob="Ship Engineer",QName="ShipQuest1",QId=2,Pos=CFrame.new(921,126,32832)},
             {Lvl=1300,Mob="Ship Steward",QName="ShipQuest2",QId=1,Pos=CFrame.new(912,126,33198)},
             {Lvl=1325,Mob="Ship Officer",QName="ShipQuest2",QId=2,Pos=CFrame.new(912,126,33198)},
+            
             {Lvl=1350,Mob="Arctic Warrior",QName="FrostQuest",QId=1,Pos=CFrame.new(6115,29,-6222)},
             {Lvl=1375,Mob="Snow Lurker",QName="FrostQuest",QId=2,Pos=CFrame.new(6115,29,-6222)},
             {Lvl=1400,Mob="Awakened Ice Admiral",QName="FrostQuest",QId=3,Pos=CFrame.new(6115,29,-6222),IsBoss=true},
@@ -327,9 +327,6 @@ return function(Settings, WindUI, Net, ReplicatedStorage, Workspace, TweenServic
         end
     end
 
-    -- ═══════════════════════════════════════
-    -- منطق هوشمند پیدا کردن کوئست (بازنویسی کامل و بدون باگ)
-    -- ═══════════════════════════════════════
     local function GetSmartQuest()
         if State.QuestLocked and State.LockedQuestData then 
             return State.LockedQuestData 
@@ -339,7 +336,6 @@ return function(Settings, WindUI, Net, ReplicatedStorage, Workspace, TweenServic
         local bestQuest = LevelUpDatabase[1]
         local prevNormalQuest = LevelUpDatabase[1]
 
-        -- پیدا کردن بالاترین کوئست مجاز
         for _, d in ipairs(LevelUpDatabase) do
             if ml >= d.Lvl then
                 bestQuest = d
@@ -349,7 +345,6 @@ return function(Settings, WindUI, Net, ReplicatedStorage, Workspace, TweenServic
 
         if not bestQuest then return nil end
 
-        -- بررسی باس
         if bestQuest.IsBoss then
             if not State.BossInLevelUp then return prevNormalQuest end
             if not IsBossSpawned(bestQuest.Mob) then return prevNormalQuest end
@@ -359,7 +354,7 @@ return function(Settings, WindUI, Net, ReplicatedStorage, Workspace, TweenServic
     end
 
     -- ═══════════════════════════════════════
-    -- Tick: منطق لول آپ
+    -- Tick: منطق اصلی لول آپ و مدیریت Cursed Ship
     -- ═══════════════════════════════════════
     local function Tick(Root, now)
         if not State.Enabled then return end
@@ -367,16 +362,44 @@ return function(Settings, WindUI, Net, ReplicatedStorage, Workspace, TweenServic
         local QData = GetSmartQuest()
         if not QData then return end
 
+        -- مدیریت ورود و خروج از Cursed Ship (مخصوص دریای دوم)
+        if Sea == 2 then
+            -- مختصات مرکز کشتی به صورت تقریبی
+            local shipCenter = Vector3.new(923, 126, 32852)
+            local inShip = (Root.Position - shipCenter).Magnitude < 3000
+
+            -- اگر لول کوئست بین 1250 تا 1325 است (نیاز به بودن در کشتی)
+            if QData.Lvl >= 1250 and QData.Lvl <= 1325 then
+                if not inShip then
+                    -- توقف حرکت قبل از تلپورت
+                    if State.ActiveTween then State.ActiveTween:Cancel(); State.ActiveTween = nil end
+                    pcall(function()
+                        ReplicatedStorage.Remotes.CommF_:InvokeServer("requestEntrance", Vector3.new(923.213, 126.976, 32852.832))
+                    end)
+                    task.wait(2)
+                    return -- متوقف کردن بقیه کدها تا تلپورت کامل شود
+                end
+            -- اگر لول کوئست بیشتر از 1325 است (یا کمتر) و پلیر داخل کشتی گیر کرده
+            elseif QData.Lvl > 1325 and inShip then
+                -- توقف حرکت قبل از تلپورت
+                if State.ActiveTween then State.ActiveTween:Cancel(); State.ActiveTween = nil end
+                pcall(function()
+                    ReplicatedStorage.Remotes.CommF_:InvokeServer("requestEntrance", Vector3.new(-6508.558, 89.035, -132.84))
+                end)
+                task.wait(2)
+                return -- متوقف کردن بقیه کدها تا تلپورت کامل شود
+            end
+        end
+
+        -- ادامه روند عادی لول‌آپ
         if HasQuest() then
             State.IsSafeToClick = true
             
-            -- قفل کردن کوئست فعلی برای جلوگیری از باگ تداخل
             if not State.QuestLocked then
                 State.QuestLocked = true
                 State.LockedQuestData = QData
             end
 
-            -- چک کردن وضعیت ماب هدف
             if State.CurrentTarget and State.CurrentTarget.Mode == "Mob" and State.CurrentTarget.Instance then
                 if IsEnemyValid(State.CurrentTarget.Instance) then
                     PrepareEnemy(State.CurrentTarget.Instance); return
@@ -387,7 +410,6 @@ return function(Settings, WindUI, Net, ReplicatedStorage, Workspace, TweenServic
                 end
             end
 
-            -- جستجوی ماب در مپ
             local fm, md = nil, math.huge
             local targetMob = State.LockedQuestData.Mob
             if Workspace:FindFirstChild("Enemies") then
@@ -406,7 +428,6 @@ return function(Settings, WindUI, Net, ReplicatedStorage, Workspace, TweenServic
                 State.CurrentTarget = {Mode="Mob", Instance=fm}
                 State.LastKnownSpawn = fm.HumanoidRootPart.CFrame
             else
-                -- اگر ماب پیدا نشد، برو سر جاش وایستا
                 if State.CurrentExpandedEnemy then CleanupExpandedHead(State.CurrentExpandedEnemy); State.CurrentExpandedEnemy = nil end
                 local sp = GetAggressiveSpawn(targetMob)
                 if sp then State.CurrentTarget = {Mode="Wait", CFrame=sp*CFrame.new(0,Settings.WaitHeight,0)}
@@ -414,7 +435,6 @@ return function(Settings, WindUI, Net, ReplicatedStorage, Workspace, TweenServic
                 else State.CurrentTarget = {Mode="Wait", CFrame=QData.Pos*CFrame.new(0,50,0)} end
             end
         else
-            -- وقتی کوئست نداریم
             if State.QuestLocked then 
                 State.QuestLocked = false; State.LockedQuestData = nil 
             end
@@ -426,7 +446,6 @@ return function(Settings, WindUI, Net, ReplicatedStorage, Workspace, TweenServic
             local freshQData = GetSmartQuest()
             if not freshQData then return end
 
-            -- رفتن سمت NPC و گرفتن کوئست
             State.CurrentTarget = {Mode="NPC", CFrame=freshQData.Pos}
             if (Root.Position - freshQData.Pos.Position).Magnitude < 15 then
                 pcall(function() ReplicatedStorage.Remotes.CommF_:InvokeServer("StartQuest", freshQData.QName, freshQData.QId) end)
@@ -435,7 +454,7 @@ return function(Settings, WindUI, Net, ReplicatedStorage, Workspace, TweenServic
     end
 
     -- ═══════════════════════════════════════
-    -- لوپ حمله و حرکت (فقط در زمان روشن بودن)
+    -- لوپ حمله و حرکت 
     -- ═══════════════════════════════════════
     task.spawn(function()
         while task.wait(0.1) do
