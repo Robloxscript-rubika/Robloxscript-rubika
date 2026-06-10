@@ -59,7 +59,7 @@ local PlaceId = game.PlaceId
 local Sea, SeaName = 0, "Unknown"
 
 if PlaceId == 2753915549 then Sea = 1; SeaName = "دریای اول"
-elseif PlaceId == 79091703265657 then Sea = 2; SeaName = "دریای دوم"
+elseif PlaceId == 4442272183 then Sea = 2; SeaName = "دریای دوم"
 elseif PlaceId == 100117331123089 then Sea = 3; SeaName = "دریای سوم" end
 if Sea == 0 then warn("[OMLET HUB] Unknown PlaceId:", PlaceId); return end
 
