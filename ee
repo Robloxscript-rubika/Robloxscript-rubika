@@ -1,1 +1,885 @@
-print(1)
+-- RaidModule.lua
+local RaidModule = {}
+
+function RaidModule(Settings, WindUI, RaidConfig)
+    local Players = game:GetService("Players")
+    local ReplicatedStorage = game:GetService("ReplicatedStorage")
+    local TweenService = game:GetService("TweenService")
+    local VirtualInputManager = game:GetService("VirtualInputManager")
+    local Workspace = game:GetService("Workspace")
+    local RunService = game:GetService("RunService")
+    local Plr = Players.LocalPlayer
+
+    local Net = ReplicatedStorage:WaitForChild("Modules"):WaitForChild("Net")
+    local RegisterAttack = Net:WaitForChild("RE/RegisterAttack")
+    local RegisterHit = Net:WaitForChild("RE/RegisterHit")
+
+    -- متغیرهای رید (از RaidConfig میگیریم)
+    local RaidEnabled = false
+    local RaidAutoRestart = RaidConfig.RaidAutoRestart or true
+    local RaidSelectedType = RaidConfig.RaidSelectedType or "Flame"
+    local RaidSelectedFruit = RaidConfig.RaidSelectedFruit or "Flame-Flame"
+    local RaidPhase = "Idle"
+    local RaidTarget = nil
+    local RaidAttackEnabled = false
+    local RaidConfirmed = false
+    local RaidLastKnownSpawn = nil
+    local RaidNoEnemyTimer = 0
+    local RaidTeleportStartTime = 0
+    local RaidPositionBeforeButton = nil
+    local RaidLastTargetEnemy = nil
+    local RaidLastAttackTime = 0
+    local RaidTargetStartTime = 0
+    local RaidIgnoredNPCs = {}
+    local RaidDiscoveredIslands = {}
+    local RaidCurrentIslandTarget = nil
+    local RaidPendingIslandTarget = nil
+    local RaidIsRetreating = false
+    local RaidRetreatPosition = nil
+    local RaidLastTrackedPosition = nil
+    local RaidRetreatAnchorY = 0
+    local CurrentExpandedEnemy = nil
+    local ActiveTween = nil
+    local WeaponMode = RaidConfig.WeaponMode or "Melee"
+
+    local ScientistLocation = CFrame.new(-6561, 310, -4747)
+
+    local RAID_TYPES = {
+        ["Flame"]="Flame",["Ice"]="Ice",["Quake"]="Quake",
+        ["Light"]="Light",["Dark"]="Dark",["Spider"]="Spider",
+        ["Rumble"]="Rumble",["Magma"]="Magma",["Buddha"]="Human: Buddha",
+        ["Sand"]="Sand",["Phoenix"]="Phoenix",["Dough"]="Dough",
+    }
+
+    -- ═══════════════════════════════════════
+    -- توابع کمکی
+    -- ═══════════════════════════════════════
+    local function Log(m) print("[AutoRaid] "..m) end
+
+    local function GetPlayerHP()
+        local h = 0
+        pcall(function()
+            if Plr.Character and Plr.Character:FindFirstChild("Humanoid") then
+                h = Plr.Character.Humanoid.Health
+            end
+        end)
+        return h
+    end
+
+    local function GetPlayerMaxHP()
+        local m = 0
+        pcall(function()
+            if Plr.Character and Plr.Character:FindFirstChild("Humanoid") then
+                m = Plr.Character.Humanoid.MaxHealth
+            end
+        end)
+        return m
+    end
+
+    local function IsHPFull()
+        local h, m = GetPlayerHP(), GetPlayerMaxHP()
+        return m > 0 and h >= m * 0.95
+    end
+
+    local function IsRaidHPLow()
+        return GetPlayerHP() < Settings.RaidLowHPThreshold
+    end
+
+    local function CleanupExpandedHead(E)
+        pcall(function()
+            if not E or not E.Parent then return end
+            local H = E:FindFirstChild("Head")
+            local FH = E:FindFirstChild("FakeHead")
+            if FH then
+                if H then H.Size = FH.Size; H.Transparency = FH.Transparency end
+                FH:Destroy()
+            end
+        end)
+    end
+
+    local function ExpandHead(E, hs)
+        pcall(function()
+            if not E or not E.Parent then return end
+            local H = E:FindFirstChild("Head")
+            if not H or E:FindFirstChild("FakeHead") then return end
+            if CurrentExpandedEnemy and CurrentExpandedEnemy ~= E then
+                CleanupExpandedHead(CurrentExpandedEnemy)
+            end
+            CurrentExpandedEnemy = E
+            local FH = H:Clone()
+            FH.Name = "FakeHead"; FH.CanCollide = false; FH.Anchored = false
+            FH.Massless = true; FH.Parent = E
+            local W = Instance.new("WeldConstraint")
+            W.Part0 = H; W.Part1 = FH; W.Parent = FH
+            H.Size = Vector3.new(hs, hs, hs)
+            H.Transparency = 1; H.CanCollide = false
+            for _, c in pairs(H:GetChildren()) do
+                if c:IsA("SpecialMesh") or c:IsA("Decal") or c:IsA("FaceInstance") or c:IsA("Texture") then
+                    c:Destroy()
+                end
+            end
+        end)
+    end
+
+    local function PrepareRaidEnemy(E)
+        pcall(function()
+            if not E or not E.Parent or not E:FindFirstChild("HumanoidRootPart") then return end
+            ExpandHead(E, Settings.HeadSize)
+            if E:FindFirstChild("Humanoid") then
+                E.Humanoid.WalkSpeed = 0
+                E.Humanoid.JumpPower = 0
+                if E.Humanoid:FindFirstChild("Animator") then
+                    E.Humanoid.Animator:Destroy()
+                end
+            end
+            for _, p in pairs(E:GetDescendants()) do
+                if p:IsA("BasePart") then p.CanCollide = false end
+            end
+        end)
+    end
+
+    local function IsValidRaidNPC(n)
+        local v = false
+        pcall(function()
+            if not n or not n.Parent then return end
+            if not n:FindFirstChild("Humanoid") or n.Humanoid.Health <= 0 then return end
+            if not n:FindFirstChild("HumanoidRootPart") or not n:FindFirstChild("Head") then return end
+            local p = n.HumanoidRootPart.Position
+            if p.Magnitude < 1 or p.Y < -500 then return end
+            v = true
+        end)
+        return v
+    end
+
+    local function GetAllAliveRaidNPCs()
+        local ns = {}
+        local e = Workspace:FindFirstChild("Enemies")
+        if not e then return ns end
+        for _, v in pairs(e:GetChildren()) do
+            if IsValidRaidNPC(v) then table.insert(ns, v) end
+        end
+        return ns
+    end
+
+    local function FindClosestRaidNPC(el)
+        if not Plr.Character or not Plr.Character:FindFirstChild("HumanoidRootPart") then return nil end
+        local Root = Plr.Character.HumanoidRootPart
+        local ns = GetAllAliveRaidNPCs()
+        local cl, cd = nil, Settings.RaidNPCSearchRange
+        for _, v in pairs(ns) do
+            local ig = false
+            if el then
+                for _, x in pairs(el) do if x == v then ig = true; break end end
+            end
+            if not ig then
+                pcall(function()
+                    local d = (Root.Position - v.HumanoidRootPart.Position).Magnitude
+                    if d < cd then cd = d; cl = v end
+                end)
+            end
+        end
+        return cl
+    end
+
+    local function FindRandomRaidNPC(ec)
+        local ns = GetAllAliveRaidNPCs()
+        if #ns == 0 then return nil end
+        local f = {}
+        for _, n in pairs(ns) do if n ~= ec then table.insert(f, n) end end
+        if #f == 0 then return nil end
+        return f[math.random(1, #f)]
+    end
+
+    local function CountAliveRaidEnemies()
+        return #GetAllAliveRaidNPCs()
+    end
+
+    local function GetSafeRetreatPosition()
+        if not Plr.Character or not Plr.Character:FindFirstChild("HumanoidRootPart") then return nil end
+        local Root = Plr.Character.HumanoidRootPart
+        local ps = {}
+        local enemies = Workspace:FindFirstChild("Enemies")
+        if enemies then
+            for _, v in pairs(enemies:GetChildren()) do
+                pcall(function()
+                    if v:FindFirstChild("Humanoid") and v.Humanoid.Health > 0 and v:FindFirstChild("HumanoidRootPart") then
+                        table.insert(ps, v.HumanoidRootPart.Position)
+                    end
+                end)
+            end
+        end
+        if #ps > 0 then
+            local avg = Vector3.zero
+            for _, p in pairs(ps) do avg = avg + p end
+            avg = avg / #ps
+            local d = Vector3.new(Root.Position.X - avg.X, 0, Root.Position.Z - avg.Z)
+            if d.Magnitude < 0.1 then d = Vector3.new(1, 0, 0) end
+            d = d.Unit
+            return CFrame.new(
+                avg.X + d.X * Settings.RaidSafeDistance,
+                RaidRetreatAnchorY + Settings.RaidSafeHeight,
+                avg.Z + d.Z * Settings.RaidSafeDistance
+            )
+        end
+        return CFrame.new(Root.Position.X, RaidRetreatAnchorY + Settings.RaidSafeHeight, Root.Position.Z)
+    end
+
+    local function GetModelPosition(m)
+        local ok, p = pcall(function()
+            local cf = m:GetBoundingBox(); return cf.Position
+        end)
+        if ok and p then return p end
+        local ok2, p2 = pcall(function()
+            if m.PrimaryPart then return m.PrimaryPart.Position end
+            return nil
+        end)
+        if ok2 and p2 then return p2 end
+        for _, part in pairs(m:GetDescendants()) do
+            if part:IsA("BasePart") then return part.Position end
+        end
+        return nil
+    end
+
+    local function GetRaidMapIslands()
+        local islands = {}
+        pcall(function()
+            local M = Workspace:FindFirstChild("Map"); if not M then return end
+            local RM = M:FindFirstChild("RaidMap"); if not RM then return end
+            for _, c in pairs(RM:GetChildren()) do
+                if string.match(c.Name, "RaidIsland%d+") then
+                    local n = tonumber(string.match(c.Name, "RaidIsland(%d+)"))
+                    if n and n >= 2 then
+                        local p = GetModelPosition(c)
+                        if p then table.insert(islands, {Name=c.Name, Instance=c, Position=p}) end
+                    end
+                end
+            end
+            table.sort(islands, function(a, b)
+                return (tonumber(string.match(a.Name, "%d+")) or 0) < (tonumber(string.match(b.Name, "%d+")) or 0)
+            end)
+        end)
+        return islands
+    end
+
+    local function GetNewIsland()
+        local islands = GetRaidMapIslands()
+        for _, i in pairs(islands) do
+            if not RaidDiscoveredIslands[i.Name] then
+                RaidDiscoveredIslands[i.Name] = true
+                return i
+            end
+        end
+        return nil
+    end
+
+    local function FindRaidButton()
+        local s, b = pcall(function()
+            return Workspace.Map.CircleIsland.RaidSummon2.Button.Main
+        end)
+        return s and b or nil
+    end
+
+    local function HasRaidTeleported()
+        if not RaidPositionBeforeButton or not Plr.Character or not Plr.Character:FindFirstChild("HumanoidRootPart") then
+            return false
+        end
+        return (Plr.Character.HumanoidRootPart.Position - RaidPositionBeforeButton).Magnitude > Settings.RaidTeleportCheckDistance
+    end
+
+    local function StopRaidAttack()
+        RaidAttackEnabled = false
+        RaidTarget = nil
+        RaidLastTargetEnemy = nil
+        RaidTargetStartTime = 0
+        RaidIgnoredNPCs = {}
+    end
+
+    local function GoToRaidIsland(i)
+        RaidCurrentIslandTarget = i
+        RaidPendingIslandTarget = nil
+        RaidPhase = "GoToIsland"
+        StopRaidAttack()
+        RaidNoEnemyTimer = 0
+    end
+
+    local function ResetRaidInternal()
+        RaidEnabled = false
+        RaidPhase = "Idle"
+        RaidTarget = nil
+        RaidAttackEnabled = false
+        RaidConfirmed = false
+        RaidLastKnownSpawn = nil
+        RaidNoEnemyTimer = 0
+        RaidTeleportStartTime = 0
+        RaidPositionBeforeButton = nil
+        RaidLastTargetEnemy = nil
+        RaidLastAttackTime = 0
+        RaidTargetStartTime = 0
+        RaidIgnoredNPCs = {}
+        RaidDiscoveredIslands = {}
+        RaidCurrentIslandTarget = nil
+        RaidPendingIslandTarget = nil
+        RaidIsRetreating = false
+        RaidRetreatPosition = nil
+        RaidLastTrackedPosition = nil
+        RaidRetreatAnchorY = 0
+        if CurrentExpandedEnemy then
+            CleanupExpandedHead(CurrentExpandedEnemy)
+            CurrentExpandedEnemy = nil
+        end
+        if ActiveTween then ActiveTween:Cancel(); ActiveTween = nil end
+    end
+
+    -- ═══════════════════════════════════════
+    -- سلاح
+    -- ═══════════════════════════════════════
+    local function IsBuddhaFruit()
+        local f = nil
+        if Plr.Character then
+            local t = Plr.Character:FindFirstChildOfClass("Tool")
+            if t and t.ToolTip == "Blox Fruit" then f = t end
+        end
+        if not f then
+            for _, t in pairs(Plr.Backpack:GetChildren()) do
+                if t:IsA("Tool") and t.ToolTip == "Blox Fruit" then f = t; break end
+            end
+        end
+        return f and string.find(string.lower(f.Name), "buddha") ~= nil
+    end
+
+    local function EquipTool(tip)
+        pcall(function()
+            if not Plr.Character then return end
+            local h = Plr.Character:FindFirstChild("Humanoid"); if not h then return end
+            local t = Plr.Character:FindFirstChildOfClass("Tool")
+            if t and (t.ToolTip == tip or (tip == "Gun" and (t.ToolTip == "Gun" or t.ToolTip == "Guns"))) then return end
+            for _, t2 in pairs(Plr.Backpack:GetChildren()) do
+                if t2:IsA("Tool") and (t2.ToolTip == tip or (tip == "Gun" and (t2.ToolTip == "Gun" or t2.ToolTip == "Guns"))) then
+                    h:EquipTool(t2); return
+                end
+            end
+        end)
+    end
+
+    local function ShouldUseFinisherRaid()
+        if not RaidTarget then return false end
+        local h = RaidTarget:FindFirstChild("Humanoid")
+        return h and h.Health <= Settings.SwitchHP
+    end
+
+    local function EquipWeaponRaid()
+        local wm = WeaponMode
+        if wm == "Melee" then EquipTool("Melee")
+        elseif wm == "Sword" then EquipTool("Sword")
+        elseif wm == "Gun" then EquipTool("Gun")
+        elseif wm == "Fruit" then EquipTool("Blox Fruit")
+        elseif wm == "MeleeGun" then
+            if ShouldUseFinisherRaid() then EquipTool("Gun") else EquipTool("Melee") end
+        elseif wm == "MeleeAbility" then
+            if ShouldUseFinisherRaid() then EquipTool("Blox Fruit") else EquipTool("Melee") end
+        end
+    end
+
+    local function ShootAtTarget(tp)
+        if not tp then return end
+        local sp, on = Workspace.CurrentCamera:WorldToViewportPoint(tp.Position)
+        if on then
+            VirtualInputManager:SendMouseButtonEvent(sp.X, sp.Y, 0, true, game, 1)
+            task.wait(0.05)
+            VirtualInputManager:SendMouseButtonEvent(sp.X, sp.Y, 0, false, game, 1)
+        end
+    end
+
+    local function UseAbilities()
+        for _, k in ipairs({"Z","X","C","F"}) do
+            VirtualInputManager:SendKeyEvent(true, Enum.KeyCode[k], false, game)
+            task.wait(0.05)
+            VirtualInputManager:SendKeyEvent(false, Enum.KeyCode[k], false, game)
+            task.wait(0.1)
+        end
+    end
+
+    local function MoveToPosition(targetCF)
+        if not Plr.Character or not Plr.Character:FindFirstChild("HumanoidRootPart") then return end
+        local Root = Plr.Character.HumanoidRootPart
+        if ActiveTween then ActiveTween:Cancel(); ActiveTween = nil end
+        local dist = (Root.Position - targetCF.Position).Magnitude
+        if dist < 8 then Root.CFrame = targetCF; return end
+        local spd = Settings.FlightSpeed
+        if RaidPhase == "Retreating" then spd = spd * 1.5
+        elseif dist < 50 then spd = 100 end
+        local duration = math.max(dist / spd, 0.05)
+        ActiveTween = TweenService:Create(
+            Root,
+            TweenInfo.new(duration, Enum.EasingStyle.Linear),
+            {CFrame = targetCF}
+        )
+        ActiveTween:Play()
+    end
+
+    -- ═══════════════════════════════════════
+    -- لوپ حمله رید
+    -- ═══════════════════════════════════════
+    task.spawn(function()
+        while true do
+            local Clicked = false
+            pcall(function()
+                if not RaidEnabled then return end
+                if not RaidAttackEnabled or not RaidConfirmed then return end
+                if RaidPhase ~= "Fighting" then return end
+                if RaidIsRetreating then return end
+                if not RaidTarget or not RaidTarget.Parent or not IsValidRaidNPC(RaidTarget) then return end
+
+                if RaidTarget ~= RaidLastTargetEnemy then
+                    RaidLastTargetEnemy = RaidTarget
+                    RaidLastAttackTime = tick()
+                end
+                if tick() - RaidLastAttackTime < Settings.AttackWaitTime then return end
+
+                pcall(function()
+                    if RaidTarget:FindFirstChild("Head") then
+                        Workspace.CurrentCamera.CFrame = CFrame.lookAt(
+                            Workspace.CurrentCamera.CFrame.Position,
+                            RaidTarget.Head.Position
+                        )
+                    end
+                end)
+
+                EquipWeaponRaid()
+                local Tool = Plr.Character and Plr.Character:FindFirstChildOfClass("Tool")
+                if Tool then
+                    Clicked = true
+                    local isGun = (WeaponMode == "Gun") or
+                        (WeaponMode == "MeleeGun" and ShouldUseFinisherRaid() and (Tool.ToolTip == "Gun" or Tool.ToolTip == "Guns"))
+
+                    if isGun then
+                        local tp = RaidTarget:FindFirstChild("Head") or RaidTarget:FindFirstChild("HumanoidRootPart")
+                        if tp then ShootAtTarget(tp) end
+                    else
+                        local CX = Workspace.CurrentCamera.ViewportSize.X / 2
+                        local CY = Workspace.CurrentCamera.ViewportSize.Y / 2
+                        VirtualInputManager:SendMouseButtonEvent(CX, CY, 0, true, game, 1)
+                        task.wait(Settings.HoldTime)
+                        VirtualInputManager:SendMouseButtonEvent(CX, CY, 0, false, game, 1)
+                        pcall(function()
+                            RegisterAttack:FireServer(math.floor((0.5 + math.random() * 0.5) * 10000) / 10000)
+                        end)
+                    end
+
+                    if WeaponMode == "MeleeAbility" and ShouldUseFinisherRaid() and Tool.ToolTip == "Blox Fruit" then
+                        UseAbilities()
+                    end
+                end
+            end)
+            task.wait(Clicked and (Settings.MinClickDelay + math.random() * (Settings.MaxClickDelay - Settings.MinClickDelay)) or 0.15)
+        end
+    end)
+
+    -- ═══════════════════════════════════════
+    -- لوپ دوربین رید
+    -- ═══════════════════════════════════════
+    task.spawn(function()
+        while task.wait(0.08) do
+            pcall(function()
+                if not RaidEnabled or not RaidAttackEnabled or not RaidConfirmed then return end
+                if RaidPhase ~= "Fighting" or RaidIsRetreating then return end
+                if not RaidTarget or not RaidTarget.Parent then return end
+                if not RaidTarget:FindFirstChild("HumanoidRootPart") then return end
+                if not Plr.Character or not Plr.Character:FindFirstChild("HumanoidRootPart") then return end
+
+                local myPos = Plr.Character.HumanoidRootPart.Position + Vector3.new(0, 2, 0)
+                Workspace.CurrentCamera.CFrame = CFrame.lookAt(myPos, RaidTarget.HumanoidRootPart.Position)
+            end)
+        end
+    end)
+
+    -- ═══════════════════════════════════════
+    -- لوپ حرکت رید
+    -- ═══════════════════════════════════════
+    task.spawn(function()
+        while true do
+            pcall(function()
+                if not RaidEnabled then return end
+                if not Plr.Character or not Plr.Character:FindFirstChild("HumanoidRootPart") then return end
+                local Root = Plr.Character.HumanoidRootPart
+                local Dest = nil
+
+                if RaidPhase == "Retreating" and RaidIsRetreating then
+                    RaidRetreatPosition = GetSafeRetreatPosition()
+                    if RaidRetreatPosition then Dest = RaidRetreatPosition end
+
+                elseif RaidPhase == "GoToScientist" then
+                    Dest = ScientistLocation
+
+                elseif RaidPhase == "GoToButton" then
+                    local b = FindRaidButton()
+                    if b then Dest = b.CFrame * CFrame.new(0, 3, 0) end
+
+                elseif RaidPhase == "GoToIsland" and RaidCurrentIslandTarget then
+                    local fp = GetModelPosition(RaidCurrentIslandTarget.Instance)
+                    if fp then RaidCurrentIslandTarget.Position = fp end
+                    Dest = CFrame.new(RaidCurrentIslandTarget.Position + Vector3.new(0, 50, 0))
+
+                elseif RaidPhase == "Fighting" and RaidAttackEnabled and not RaidIsRetreating then
+                    if RaidTarget and RaidTarget.Parent and RaidTarget:FindFirstChild("HumanoidRootPart") and IsValidRaidNPC(RaidTarget) then
+                        local EP = RaidTarget.HumanoidRootPart.Position
+                        local d = (Root.Position - EP)
+                        d = Vector3.new(d.X, 0, d.Z)
+                        if d.Magnitude < 0.1 then d = Vector3.new(1, 0, 0) end
+                        d = d.Unit
+                        local ad, ah = Settings.AttackDistance, Settings.AttackHeight
+                        if (WeaponMode == "Fruit" or WeaponMode == "MeleeAbility") and IsBuddhaFruit() then
+                            ad = Settings.BuddhaDistance
+                        end
+                        local T = Plr.Character:FindFirstChildOfClass("Tool")
+                        if T and (T.ToolTip == "Gun" or T.ToolTip == "Guns") then
+                            ad = Settings.GunAttackDistance
+                            ah = Settings.GunAttackHeight
+                        end
+                        Dest = CFrame.lookAt(EP + d * ad + Vector3.new(0, ah, 0), EP)
+                    end
+
+                elseif RaidPhase == "WaitForSpawn" and RaidLastKnownSpawn then
+                    Dest = RaidLastKnownSpawn * CFrame.new(0, Settings.WaitHeight, 0)
+                end
+
+                if Dest then MoveToPosition(Dest) end
+            end)
+            task.wait(0.12)
+        end
+    end)
+
+    -- ═══════════════════════════════════════
+    -- نوکلیپ و فریز در رید
+    -- ═══════════════════════════════════════
+    RunService.Stepped:Connect(function()
+        pcall(function()
+            if not RaidEnabled then return end
+            if not Plr.Character then return end
+            for _, p in pairs(Plr.Character:GetDescendants()) do
+                if p:IsA("BasePart") then p.CanCollide = false end
+            end
+            if Plr.Character:FindFirstChild("HumanoidRootPart") then
+                Plr.Character.HumanoidRootPart.Velocity = Vector3.zero
+            end
+        end)
+    end)
+
+    RunService.Heartbeat:Connect(function()
+        pcall(function()
+            if not RaidEnabled then return end
+            if RaidTarget and RaidTarget.Parent and RaidTarget:FindFirstChild("Humanoid") then
+                RaidTarget.Humanoid.WalkSpeed = 0
+                RaidTarget.Humanoid.JumpPower = 0
+                for _, p in pairs(RaidTarget:GetDescendants()) do
+                    if p:IsA("BasePart") then p.CanCollide = false end
+                end
+            end
+        end)
+    end)
+
+    -- ═══════════════════════════════════════
+    -- لوپ اصلی منطق رید
+    -- ═══════════════════════════════════════
+    task.spawn(function()
+        local lastRaidIsland = 0
+
+        while task.wait(0.5) do
+            pcall(function()
+                if not RaidEnabled then return end
+                if not Plr.Character or not Plr.Character:FindFirstChild("HumanoidRootPart") then return end
+                local Root = Plr.Character.HumanoidRootPart
+                local now = tick()
+
+                -- چک تموم شدن رید (تلپورت برگشت)
+                if RaidConfirmed and RaidLastTrackedPosition then
+                    if (Root.Position - RaidLastTrackedPosition).Magnitude > Settings.RaidEndTeleportDistance then
+                        Log("رید تمام شد!")
+                        RaidPhase = "Completed"
+                        StopRaidAttack()
+                        RaidIsRetreating = false
+                        RaidLastTrackedPosition = nil
+                    end
+                end
+                if RaidConfirmed then RaidLastTrackedPosition = Root.Position end
+
+                -- عقب‌نشینی HP پایین
+                if RaidPhase == "Fighting" and not RaidIsRetreating and IsRaidHPLow() then
+                    RaidIsRetreating = true
+                    RaidRetreatAnchorY = Root.Position.Y
+                    RaidAttackEnabled = false
+                    RaidPhase = "Retreating"
+                    if CurrentExpandedEnemy then
+                        CleanupExpandedHead(CurrentExpandedEnemy)
+                        CurrentExpandedEnemy = nil
+                    end
+                    Log("HP پایین! عقب‌نشینی...")
+                elseif RaidPhase == "Retreating" and RaidIsRetreating and IsHPFull() then
+                    RaidIsRetreating = false
+                    RaidAttackEnabled = true
+                    RaidPhase = "Fighting"
+                    RaidNoEnemyTimer = 0
+                    RaidTargetStartTime = tick()
+                    RaidIgnoredNPCs = {}
+                    RaidTarget = nil
+                    Log("HP برگشت، ادامه رید...")
+                end
+
+                -- عوض کردن تارگت هر چند ثانیه
+                if RaidAttackEnabled and RaidPhase == "Fighting" and not RaidIsRetreating and
+                   RaidTarget and RaidTargetStartTime > 0 and
+                   tick() - RaidTargetStartTime >= Settings.RaidTargetSwitchTime then
+                    table.insert(RaidIgnoredNPCs, RaidTarget)
+                    local nt = FindRandomRaidNPC(RaidTarget)
+                    if nt then
+                        if CurrentExpandedEnemy then CleanupExpandedHead(CurrentExpandedEnemy) end
+                        RaidTarget = nt
+                        RaidTargetStartTime = tick()
+                        PrepareRaidEnemy(RaidTarget)
+                    else
+                        RaidIgnoredNPCs = {}
+                        RaidTargetStartTime = tick()
+                    end
+                end
+
+                -- چک جزیره جدید
+                if now - lastRaidIsland > Settings.RaidIslandCheckInterval and RaidConfirmed and not RaidIsRetreating then
+                    lastRaidIsland = now
+                    local ni = GetNewIsland()
+                    if ni then
+                        RaidPendingIslandTarget = ni
+                        if RaidPhase == "WaitForSpawn" then GoToRaidIsland(ni) end
+                    end
+                end
+
+                -- ═══ فازهای رید ═══
+                if RaidPhase == "Retreating" then
+                    -- حرکت توسط لوپ حرکت هندل میشه
+
+                elseif RaidPhase == "GoToScientist" then
+                    if (Root.Position - ScientistLocation.Position).Magnitude < 15 then
+                        RaidPhase = "LoadFruit"
+                    end
+
+                elseif RaidPhase == "LoadFruit" then
+                    pcall(function()
+                        ReplicatedStorage.Remotes.CommF_:InvokeServer("LoadFruit", RaidSelectedFruit)
+                    end)
+                    task.wait(1.5)
+                    RaidPhase = "SelectRaid"
+
+                elseif RaidPhase == "SelectRaid" then
+                    local rt = RAID_TYPES[RaidSelectedType]
+                    if rt then
+                        pcall(function()
+                            ReplicatedStorage.Remotes.CommF_:InvokeServer("RaidsNpc", "Select", rt)
+                        end)
+                        task.wait(1)
+                        RaidPhase = "GoToButton"
+                    else
+                        ResetRaidInternal()
+                    end
+
+                elseif RaidPhase == "GoToButton" then
+                    local b = FindRaidButton()
+                    if b and (Root.Position - b.Position).Magnitude < 8 then
+                        RaidPhase = "PressButton"
+                    end
+
+                elseif RaidPhase == "PressButton" then
+                    RaidPositionBeforeButton = Root.Position
+                    RaidTeleportStartTime = tick()
+                    local b = FindRaidButton()
+                    if b then
+                        if b:FindFirstChild("ClickDetector") then
+                            pcall(function() fireclickdetector(b.ClickDetector) end)
+                        end
+                        Root.CFrame = b.CFrame
+                        task.wait(0.5)
+                        for _, v in pairs(b:GetDescendants()) do
+                            if v:IsA("ProximityPrompt") then
+                                pcall(function() fireproximityprompt(v) end)
+                            end
+                        end
+                    end
+                    RaidPhase = "WaitingForTeleport"
+
+                elseif RaidPhase == "WaitingForTeleport" then
+                    if HasRaidTeleported() then
+                        task.wait(2)
+                        RaidDiscoveredIslands = {}
+                        RaidCurrentIslandTarget = nil
+                        RaidPendingIslandTarget = nil
+                        RaidIsRetreating = false
+                        RaidLastTrackedPosition = nil
+
+                        if CountAliveRaidEnemies() > 0 then
+                            RaidConfirmed = true
+                            RaidAttackEnabled = true
+                            RaidPhase = "Fighting"
+                            RaidNoEnemyTimer = 0
+                            RaidTargetStartTime = tick()
+                        else
+                            local i = GetNewIsland()
+                            if i then
+                                RaidConfirmed = true
+                                GoToRaidIsland(i)
+                            else
+                                RaidConfirmed = true
+                                RaidPhase = "WaitForSpawn"
+                            end
+                        end
+                    elseif tick() - RaidTeleportStartTime >= Settings.RaidTeleportWaitTime then
+                        Log("تایم اوت رید!")
+                        ResetRaidInternal()
+                    end
+
+                elseif RaidPhase == "GoToIsland" then
+                    if RaidCurrentIslandTarget then
+                        local fp = GetModelPosition(RaidCurrentIslandTarget.Instance)
+                        if fp then RaidCurrentIslandTarget.Position = fp end
+                        if (Root.Position - RaidCurrentIslandTarget.Position).Magnitude < 100 then
+                            task.wait(Settings.RaidIslandWaitTime)
+                            if CountAliveRaidEnemies() > 0 then
+                                RaidAttackEnabled = true
+                                RaidPhase = "Fighting"
+                                RaidNoEnemyTimer = 0
+                                RaidTargetStartTime = tick()
+                                RaidIgnoredNPCs = {}
+                            else
+                                RaidPhase = "WaitForSpawn"
+                                RaidNoEnemyTimer = tick()
+                            end
+                        end
+                    else
+                        RaidPhase = "WaitForSpawn"
+                    end
+
+                elseif RaidPhase == "Fighting" then
+                    if not RaidConfirmed or not RaidAttackEnabled then return end
+
+                    if RaidPendingIslandTarget and CountAliveRaidEnemies() == 0 then
+                        GoToRaidIsland(RaidPendingIslandTarget)
+                        return
+                    end
+
+                    if RaidTarget and IsValidRaidNPC(RaidTarget) then
+                        PrepareRaidEnemy(RaidTarget)
+                        RaidNoEnemyTimer = 0
+                    else
+                        if RaidTarget then
+                            pcall(function() CleanupExpandedHead(RaidTarget) end)
+                        end
+                        RaidTarget = nil
+
+                        local cl = FindClosestRaidNPC(RaidIgnoredNPCs)
+                        if cl then
+                            RaidTarget = cl
+                            PrepareRaidEnemy(RaidTarget)
+                            RaidNoEnemyTimer = 0
+                            RaidTargetStartTime = tick()
+                            if cl:FindFirstChild("HumanoidRootPart") then
+                                RaidLastKnownSpawn = cl.HumanoidRootPart.CFrame
+                            end
+                        else
+                            RaidIgnoredNPCs = {}
+                            if CountAliveRaidEnemies() == 0 then
+                                if RaidNoEnemyTimer == 0 then RaidNoEnemyTimer = tick() end
+                                if tick() - RaidNoEnemyTimer > 3 then
+                                    if RaidPendingIslandTarget then
+                                        GoToRaidIsland(RaidPendingIslandTarget)
+                                    else
+                                        local ni = GetNewIsland()
+                                        if ni then GoToRaidIsland(ni)
+                                        else RaidPhase = "WaitForSpawn" end
+                                    end
+                                end
+                            else
+                                RaidNoEnemyTimer = 0
+                            end
+                        end
+                    end
+
+                elseif RaidPhase == "WaitForSpawn" then
+                    if not RaidConfirmed then return end
+                    if RaidPendingIslandTarget then GoToRaidIsland(RaidPendingIslandTarget); return end
+                    local ni = GetNewIsland()
+                    if ni then GoToRaidIsland(ni); return end
+                    local cl = FindClosestRaidNPC(nil)
+                    if cl then
+                        RaidTarget = cl
+                        PrepareRaidEnemy(RaidTarget)
+                        RaidAttackEnabled = true
+                        RaidPhase = "Fighting"
+                        RaidNoEnemyTimer = 0
+                        RaidTargetStartTime = tick()
+                        RaidIgnoredNPCs = {}
+                        if cl:FindFirstChild("HumanoidRootPart") then
+                            RaidLastKnownSpawn = cl.HumanoidRootPart.CFrame
+                        end
+                    end
+
+                elseif RaidPhase == "Completed" then
+                    StopRaidAttack()
+                    RaidConfirmed = false
+                    RaidIsRetreating = false
+                    RaidLastTrackedPosition = nil
+
+                    if RaidAutoRestart then
+                        task.wait(3)
+                        RaidPhase = "GoToScientist"
+                        RaidLastKnownSpawn = nil
+                        RaidNoEnemyTimer = 0
+                        RaidPositionBeforeButton = nil
+                        RaidTeleportStartTime = 0
+                        RaidDiscoveredIslands = {}
+                        RaidCurrentIslandTarget = nil
+                        RaidPendingIslandTarget = nil
+                        RaidIgnoredNPCs = {}
+                        RaidIsRetreating = false
+                        RaidLastTrackedPosition = nil
+                        Log("ری‌استارت رید...")
+                        WindUI:Notify({Title="اتو رید", Content="ری‌استارت...", Duration=3})
+                    else
+                        ResetRaidInternal()
+                        WindUI:Notify({Title="اتو رید", Content="تمام شد!", Duration=5})
+                    end
+                end
+            end)
+        end
+    end)
+
+    -- ═══════════════════════════════════════
+    -- API
+    -- ═══════════════════════════════════════
+    local API = {}
+
+    function API.Start()
+        RaidEnabled = true
+        RaidPhase = "GoToScientist"
+        RaidTarget = nil
+        RaidAttackEnabled = false
+        RaidConfirmed = false
+        RaidIsRetreating = false
+        RaidLastTrackedPosition = nil
+        RaidDiscoveredIslands = {}
+        RaidIgnoredNPCs = {}
+        Log("اتو رید شروع شد!")
+    end
+
+    function API.Stop()
+        ResetRaidInternal()
+        Log("اتو رید متوقف شد!")
+    end
+
+    function API.SetType(t) RaidSelectedType = t end
+    function API.SetFruit(f) RaidSelectedFruit = f end
+    function API.SetAutoRestart(v) RaidAutoRestart = v end
+    function API.SetWeaponMode(m) WeaponMode = m end
+    function API.IsEnabled() return RaidEnabled end
+    function API.GetPhase() return RaidPhase end
+
+    return API
+end
+
+return RaidModule
