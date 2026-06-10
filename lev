@@ -1,9 +1,7 @@
 -- LevelUpModule.lua
--- این فایل رو توی گیتهاب بزار
+-- این فایل رو توی گیت هاب بزار
 
-local LevelUpModule = {}
-
-function LevelUpModule(Settings, WindUI, Net, ReplicatedStorage, Workspace, TweenService, VirtualInputManager, GuiService, RegisterAttack, RegisterHit)
+return function(Settings, WindUI, Net, ReplicatedStorage, Workspace, TweenService, VirtualInputManager, GuiService, RegisterAttack, RegisterHit)
     
     local Plr = game:GetService("Players").LocalPlayer
     local RunService = game:GetService("RunService")
@@ -12,21 +10,12 @@ function LevelUpModule(Settings, WindUI, Net, ReplicatedStorage, Workspace, Twee
     -- متغیرهای داخلی ماژول
     -- ═══════════════════════════════════════
     local State = {
-        -- وضعیت کلی
         Enabled = false,
-        FarmMode = "None",
         IsSafeToClick = true,
         
-        -- کوئست
-        CurrentQuestData = nil,
-        WaitingForBoss = false,
-        BossQuestTaken = false,
-        LastNormalQuestData = nil,
-        BossKilledByOther = false,
         QuestLocked = false,
         LockedQuestData = nil,
         
-        -- هدف
         CurrentTarget = nil,
         CurrentExpandedEnemy = nil,
         LastKnownSpawn = nil,
@@ -34,16 +23,11 @@ function LevelUpModule(Settings, WindUI, Net, ReplicatedStorage, Workspace, Twee
         LastTargetTime = 0,
         ActiveTween = nil,
         
-        -- سلاح
         WeaponMode = "Melee",
         AttackMethod = "Click",
-        HasTransformed = false,
-        IsTransforming = false,
         
-        -- باس در لول آپ
         BossInLevelUp = true,
         
-        -- سابمرج
         TravelRequestSent = false,
         TravelComplete = false,
     }
@@ -53,11 +37,11 @@ function LevelUpModule(Settings, WindUI, Net, ReplicatedStorage, Workspace, Twee
     local Sea = 0
     
     -- ═══════════════════════════════════════
-    -- تشخیص دریا
+    -- تشخیص دریا (اصلاح شده)
     -- ═══════════════════════════════════════
     local PlaceId = game.PlaceId
     if PlaceId == 2753915549 then Sea = 1
-    elseif PlaceId == 79091703265657 then Sea = 2
+    elseif PlaceId == 4442272183 then Sea = 2 -- آیدی دریای دوم اصلاح شد
     elseif PlaceId == 100117331123089 then Sea = 3 end
     
     -- ═══════════════════════════════════════
@@ -186,11 +170,11 @@ function LevelUpModule(Settings, WindUI, Net, ReplicatedStorage, Workspace, Twee
     end
 
     -- ═══════════════════════════════════════
-    -- توابع داخلی
+    -- توابع کمکی
     -- ═══════════════════════════════════════
     local function GetMyLevel()
         local s, l = pcall(function() return Plr.Data.Level.Value end)
-        return s and l or 0
+        return s and l or 1
     end
 
     local function HasQuest()
@@ -198,14 +182,11 @@ function LevelUpModule(Settings, WindUI, Net, ReplicatedStorage, Workspace, Twee
         return g and g:FindFirstChild("Quest") and g.Quest.Visible or false
     end
 
-    local function Log(m) print("[LevelUp] " .. m) end
-
     local function IsEnemyValid(E)
         if not E or not E.Parent then return false end
         local hum = E:FindFirstChild("Humanoid")
         if not hum or hum.Health <= 0 then return false end
-        if not E:FindFirstChild("HumanoidRootPart") then return false end
-        return true
+        return E:FindFirstChild("HumanoidRootPart") ~= nil
     end
 
     local function IsBossAlive(n)
@@ -222,12 +203,9 @@ function LevelUpModule(Settings, WindUI, Net, ReplicatedStorage, Workspace, Twee
 
     local function IsBossSpawned(n)
         local W = Workspace:FindFirstChild("_WorldOrigin")
-        if W then
-            local E = W:FindFirstChild("EnemySpawns")
-            if E then
-                for _, v in pairs(E:GetChildren()) do
-                    if string.find(v.Name, n) then return true end
-                end
+        if W and W:FindFirstChild("EnemySpawns") then
+            for _, v in pairs(W.EnemySpawns:GetChildren()) do
+                if string.find(v.Name, n) then return true end
             end
         end
         return IsBossAlive(n)
@@ -235,29 +213,19 @@ function LevelUpModule(Settings, WindUI, Net, ReplicatedStorage, Workspace, Twee
 
     local function GetAggressiveSpawn(n)
         if SpawnCache[n] then return SpawnCache[n] end
-        if Workspace:FindFirstChild("_WorldOrigin") and Workspace._WorldOrigin:FindFirstChild("EnemySpawns") then
-            for _, v in pairs(Workspace._WorldOrigin.EnemySpawns:GetChildren()) do
-                if string.find(v.Name, n) then SpawnCache[n] = v.CFrame; return v.CFrame end
+        local W = Workspace:FindFirstChild("_WorldOrigin")
+        if W and W:FindFirstChild("EnemySpawns") then
+            for _, v in pairs(W.EnemySpawns:GetChildren()) do
+                if string.find(v.Name, n) then 
+                    SpawnCache[n] = v.CFrame; return v.CFrame 
+                end
             end
         end
         return nil
     end
 
-    local function IsNearSubmerged()
-        if not Plr.Character or not Plr.Character:FindFirstChild("HumanoidRootPart") then return false end
-        return (Plr.Character.HumanoidRootPart.Position - Vector3.new(10779,-2088,9262)).Magnitude < 2000
-    end
-
-    local function NeedsTravelToSubmerged()
-        local ml = GetMyLevel()
-        if ml < 2600 then return false end
-        if State.TravelComplete then return false end
-        if IsNearSubmerged() then State.TravelComplete = true; return false end
-        return true
-    end
-
     -- ═══════════════════════════════════════
-    -- FakeHead
+    -- سیستم هیت باکس
     -- ═══════════════════════════════════════
     local function CleanupExpandedHead(E)
         pcall(function()
@@ -274,8 +242,7 @@ function LevelUpModule(Settings, WindUI, Net, ReplicatedStorage, Workspace, Twee
     local function ExpandHead(E, hs)
         pcall(function()
             if not E or not E.Parent then return end
-            local H = E:FindFirstChild("Head")
-            if not H then return end
+            local H = E:FindFirstChild("Head"); if not H then return end
 
             if State.CurrentExpandedEnemy and State.CurrentExpandedEnemy ~= E then
                 CleanupExpandedHead(State.CurrentExpandedEnemy)
@@ -283,36 +250,22 @@ function LevelUpModule(Settings, WindUI, Net, ReplicatedStorage, Workspace, Twee
             end
 
             if E:FindFirstChild("FakeHead") then
-                H.Size = Vector3.new(hs, hs, hs)
-                H.Transparency = 1
-                H.CanCollide = false
-                State.CurrentExpandedEnemy = E
-                return
+                H.Size = Vector3.new(hs, hs, hs); H.Transparency = 1; H.CanCollide = false
+                State.CurrentExpandedEnemy = E; return
             end
 
             State.CurrentExpandedEnemy = E
             local FH = H:Clone()
-            FH.Name = "FakeHead"
-            FH.CanCollide = false
-            FH.Anchored = false
-            FH.Massless = true
-            FH.Size = H.Size
-            FH.Transparency = H.Transparency
-            FH.Parent = E
+            FH.Name = "FakeHead"; FH.CanCollide = false; FH.Anchored = false; FH.Massless = true
+            FH.Size = H.Size; FH.Transparency = H.Transparency; FH.Parent = E
 
             local W = Instance.new("WeldConstraint")
             W.Part0 = H; W.Part1 = FH; W.Parent = FH
 
-            H.Size = Vector3.new(hs, hs, hs)
-            H.Transparency = 1
-            H.CanCollide = false
+            H.Size = Vector3.new(hs, hs, hs); H.Transparency = 1; H.CanCollide = false
 
             for _, c in pairs(H:GetChildren()) do
-                if c:IsA("SpecialMesh") or c:IsA("Decal") or c:IsA("FaceInstance") or c:IsA("Texture") then
-                    c:Destroy()
-                end
-            end
-            for _, c in pairs(H:GetChildren()) do
+                if c:IsA("SpecialMesh") or c:IsA("Decal") or c:IsA("FaceInstance") or c:IsA("Texture") then c:Destroy() end
                 if c:IsA("BillboardGui") then c.Adornee = FH end
             end
         end)
@@ -320,87 +273,41 @@ function LevelUpModule(Settings, WindUI, Net, ReplicatedStorage, Workspace, Twee
 
     local function PrepareEnemy(E)
         pcall(function()
-            if not E or not E.Parent then return end
-            if not E:FindFirstChild("HumanoidRootPart") then return end
+            if not E or not E.Parent or not E:FindFirstChild("HumanoidRootPart") then return end
             ExpandHead(E, Settings.HeadSize)
             if Settings.FreezeEnemy and E:FindFirstChild("Humanoid") then
-                E.Humanoid.WalkSpeed = 0
-                E.Humanoid.JumpPower = 0
-                if Settings.RemoveAnimator and E.Humanoid:FindFirstChild("Animator") then
-                    E.Humanoid.Animator:Destroy()
+                E.Humanoid.WalkSpeed = 0; E.Humanoid.JumpPower = 0
+                if Settings.RemoveAnimator and E.Humanoid:FindFirstChild("Animator") then E.Humanoid.Animator:Destroy() end
+            end
+            for _, p in pairs(E:GetDescendants()) do if p:IsA("BasePart") then p.CanCollide = false end end
+        end)
+    end
+
+    -- ═══════════════════════════════════════
+    -- سلاح ها
+    -- ═══════════════════════════════════════
+    local function EquipToolByType(ttype)
+        pcall(function()
+            if not Plr.Character then return end
+            local h = Plr.Character:FindFirstChild("Humanoid"); if not h then return end
+            local t = Plr.Character:FindFirstChildOfClass("Tool")
+            if t and (t.ToolTip == ttype or (ttype=="Gun" and t.ToolTip=="Guns")) then return end
+            for _, t2 in pairs(Plr.Backpack:GetChildren()) do
+                if t2:IsA("Tool") and (t2.ToolTip == ttype or (ttype=="Gun" and t2.ToolTip=="Guns")) then 
+                    h:EquipTool(t2); return 
                 end
             end
-            for _, p in pairs(E:GetDescendants()) do
-                if p:IsA("BasePart") then p.CanCollide = false end
-            end
         end)
-    end
-
-    -- ═══════════════════════════════════════
-    -- سلاح
-    -- ═══════════════════════════════════════
-    local function EquipMelee()
-        pcall(function()
-            if not Plr.Character then return end
-            local h = Plr.Character:FindFirstChild("Humanoid"); if not h then return end
-            local t = Plr.Character:FindFirstChildOfClass("Tool")
-            if t and t.ToolTip == "Melee" then return end
-            for _, t2 in pairs(Plr.Backpack:GetChildren()) do
-                if t2:IsA("Tool") and t2.ToolTip == "Melee" then h:EquipTool(t2); return end
-            end
-        end)
-    end
-
-    local function EquipSword()
-        pcall(function()
-            if not Plr.Character then return end
-            local h = Plr.Character:FindFirstChild("Humanoid"); if not h then return end
-            local t = Plr.Character:FindFirstChildOfClass("Tool")
-            if t and t.ToolTip == "Sword" then return end
-            for _, t2 in pairs(Plr.Backpack:GetChildren()) do
-                if t2:IsA("Tool") and t2.ToolTip == "Sword" then h:EquipTool(t2); return end
-            end
-        end)
-    end
-
-    local function EquipGun()
-        pcall(function()
-            if not Plr.Character then return end
-            local h = Plr.Character:FindFirstChild("Humanoid"); if not h then return end
-            local t = Plr.Character:FindFirstChildOfClass("Tool")
-            if t and (t.ToolTip == "Gun" or t.ToolTip == "Guns") then return end
-            for _, t2 in pairs(Plr.Backpack:GetChildren()) do
-                if t2:IsA("Tool") and (t2.ToolTip == "Gun" or t2.ToolTip == "Guns") then h:EquipTool(t2); return end
-            end
-        end)
-    end
-
-    local function EquipFruit()
-        pcall(function()
-            if not Plr.Character then return end
-            local h = Plr.Character:FindFirstChild("Humanoid"); if not h then return end
-            local t = Plr.Character:FindFirstChildOfClass("Tool")
-            if t and t.ToolTip == "Blox Fruit" then return end
-            for _, t2 in pairs(Plr.Backpack:GetChildren()) do
-                if t2:IsA("Tool") and t2.ToolTip == "Blox Fruit" then h:EquipTool(t2); return end
-            end
-        end)
-    end
-
-    local function GetFruitTool()
-        if Plr.Character then
-            local t = Plr.Character:FindFirstChildOfClass("Tool")
-            if t and t.ToolTip == "Blox Fruit" then return t end
-        end
-        for _, t in pairs(Plr.Backpack:GetChildren()) do
-            if t:IsA("Tool") and t.ToolTip == "Blox Fruit" then return t end
-        end
-        return nil
     end
 
     local function IsBuddhaFruit()
-        local f = GetFruitTool()
-        return f and string.find(string.lower(f.Name), "buddha") ~= nil
+        local t = Plr.Character and Plr.Character:FindFirstChildOfClass("Tool")
+        if not t then
+            for _, t2 in pairs(Plr.Backpack:GetChildren()) do
+                if t2:IsA("Tool") and t2.ToolTip == "Blox Fruit" then t = t2; break end
+            end
+        end
+        return t and string.find(string.lower(t.Name), "buddha") ~= nil
     end
 
     local function ShouldUseFinisher()
@@ -411,166 +318,65 @@ function LevelUpModule(Settings, WindUI, Net, ReplicatedStorage, Workspace, Twee
 
     local function EquipWeapon()
         local wm = State.WeaponMode
-        if wm == "Melee" then EquipMelee()
-        elseif wm == "Sword" then EquipSword()
-        elseif wm == "Gun" then EquipGun()
-        elseif wm == "Fruit" then EquipFruit()
-        elseif wm == "MeleeGun" then if ShouldUseFinisher() then EquipGun() else EquipMelee() end
-        elseif wm == "MeleeAbility" then if ShouldUseFinisher() then EquipFruit() else EquipMelee() end
-        end
-    end
-
-    local function UseAbilities()
-        for _, k in ipairs({"Z","X","C","F"}) do
-            VirtualInputManager:SendKeyEvent(true, Enum.KeyCode[k], false, game)
-            task.wait(0.05)
-            VirtualInputManager:SendKeyEvent(false, Enum.KeyCode[k], false, game)
-            task.wait(0.1)
-        end
-    end
-
-    local function ShootAtTarget(tp)
-        if not tp then return end
-        local sp, on = Workspace.CurrentCamera:WorldToViewportPoint(tp.Position)
-        if on then
-            VirtualInputManager:SendMouseButtonEvent(sp.X, sp.Y, 0, true, game, 1)
-            task.wait(0.05)
-            VirtualInputManager:SendMouseButtonEvent(sp.X, sp.Y, 0, false, game, 1)
+        if wm == "Melee" then EquipToolByType("Melee")
+        elseif wm == "Sword" then EquipToolByType("Sword")
+        elseif wm == "Gun" then EquipToolByType("Gun")
+        elseif wm == "Fruit" then EquipToolByType("Blox Fruit")
+        elseif wm == "MeleeGun" then if ShouldUseFinisher() then EquipToolByType("Gun") else EquipToolByType("Melee") end
+        elseif wm == "MeleeAbility" then if ShouldUseFinisher() then EquipToolByType("Blox Fruit") else EquipToolByType("Melee") end
         end
     end
 
     -- ═══════════════════════════════════════
-    -- دیالوگ
-    -- ═══════════════════════════════════════
-    local function ClickNevermind(DG)
-        local VB = {}
-        for _, v in pairs(DG:GetDescendants()) do
-            if v:IsA("TextButton") and v.Visible then table.insert(VB, v) end
-        end
-        if #VB > 0 then
-            local b = VB[#VB]
-            local p = b.AbsolutePosition; local s = b.AbsoluteSize
-            local I = GuiService:GetGuiInset()
-            VirtualInputManager:SendMouseButtonEvent(p.X+s.X/2, p.Y+s.Y/2+I.Y, 0, true, game, 1)
-            task.wait(0.05)
-            VirtualInputManager:SendMouseButtonEvent(p.X+s.X/2, p.Y+s.Y/2+I.Y, 0, false, game, 1)
-            return true
-        end
-        return false
-    end
-
-    local function HandleDialogue()
-        pcall(function()
-            local M = Plr.PlayerGui:FindFirstChild("Main"); if not M then return end
-            local D = M:FindFirstChild("Dialogue")
-            if D and D.Visible then
-                State.IsSafeToClick = false
-                task.wait(2); if D.Visible then ClickNevermind(D) end
-                task.wait(2); if D.Visible then ClickNevermind(D) end
-                task.wait(1)
-            else
-                if State.CurrentTarget and State.CurrentTarget.Mode == "Travel" then
-                    State.IsSafeToClick = false
-                else
-                    State.IsSafeToClick = true
-                end
-            end
-        end)
-    end
-
-    -- ═══════════════════════════════════════
-    -- GetSmartQuest با قفل کوئست
+    -- منطق هوشمند پیدا کردن کوئست (بازنویسی کامل و بدون باگ)
     -- ═══════════════════════════════════════
     local function GetSmartQuest()
-        -- اگه کوئست قفل شده، همون رو برگردون
-        if State.QuestLocked and State.LockedQuestData then
-            return State.LockedQuestData
+        if State.QuestLocked and State.LockedQuestData then 
+            return State.LockedQuestData 
         end
 
         local ml = GetMyLevel()
-        local BD, BI, PBD = nil, 0, nil
+        local bestQuest = LevelUpDatabase[1]
+        local prevNormalQuest = LevelUpDatabase[1]
 
-        for i, d in ipairs(LevelUpDatabase) do
-            if ml >= d.Lvl then BD = d; BI = i end
+        -- پیدا کردن بالاترین کوئست مجاز
+        for _, d in ipairs(LevelUpDatabase) do
+            if ml >= d.Lvl then
+                bestQuest = d
+                if not d.IsBoss then prevNormalQuest = d end
+            end
         end
 
-        if not BD and #LevelUpDatabase > 0 then BD = LevelUpDatabase[1]; BI = 1 end
-        if not BD then return nil end
+        if not bestQuest then return nil end
 
-        if BD.IsBoss then
-            if not State.BossInLevelUp then
-                for i = BI - 1, 1, -1 do
-                    if not LevelUpDatabase[i].IsBoss then return LevelUpDatabase[i] end
-                end
-                return BD
-            end
-            for i = BI - 1, 1, -1 do
-                if not LevelUpDatabase[i].IsBoss then PBD = LevelUpDatabase[i]; break end
-            end
-            local ba, bs = IsBossAlive(BD.Mob), IsBossSpawned(BD.Mob)
-            if ml < BD.Lvl and PBD then return PBD end
-            if State.BossQuestTaken and not ba and not bs then
-                State.BossQuestTaken = false; State.BossKilledByOther = true
-                if PBD then return PBD end
-            end
-            if bs or ba then
-                if HasQuest() and not State.BossQuestTaken then
-                    if State.CurrentQuestData and not State.CurrentQuestData.IsBoss then
-                        State.WaitingForBoss = true; return State.CurrentQuestData
-                    end
-                end
-                if not HasQuest() and ml >= BD.Lvl then
-                    State.WaitingForBoss = false; State.BossQuestTaken = true
-                    State.LastNormalQuestData = PBD; return BD
-                end
-                if State.BossQuestTaken then return BD end
-            else
-                State.BossQuestTaken = false; State.WaitingForBoss = false
-                if PBD then return PBD end
-            end
+        -- بررسی باس
+        if bestQuest.IsBoss then
+            if not State.BossInLevelUp then return prevNormalQuest end
+            if not IsBossSpawned(bestQuest.Mob) then return prevNormalQuest end
         end
-        State.BossQuestTaken = false; State.WaitingForBoss = false
-        return BD
+
+        return bestQuest
     end
 
     -- ═══════════════════════════════════════
-    -- Tick: منطق اصلی لول آپ (هر 0.5 ثانیه)
+    -- Tick: منطق لول آپ
     -- ═══════════════════════════════════════
     local function Tick(Root, now)
         if not State.Enabled then return end
 
-        -- سابمرج دریای سوم
-        if Sea == 3 and NeedsTravelToSubmerged() and not State.TravelRequestSent then
-            local SN = CFrame.new(-16271, 25, 1372)
-            State.CurrentTarget = {Mode="Travel", CFrame=SN}
-            State.IsSafeToClick = false
-            if (Root.Position - SN.Position).Magnitude < 10 then
-                task.wait(1)
-                pcall(function() Net:FindFirstChild("RF/SubmarineWorkerSpeak"):InvokeServer("TravelToSubmergedIsland") end)
-                State.TravelRequestSent = true; task.wait(8)
-                if IsNearSubmerged() then State.TravelComplete = true; State.CurrentTarget = nil; State.IsSafeToClick = true end
-            end
-            return
-        end
-        if State.TravelRequestSent and not State.TravelComplete then
-            if IsNearSubmerged() then State.TravelComplete = true; State.CurrentTarget = nil; State.IsSafeToClick = true
-            else return end
-        end
-
         local QData = GetSmartQuest()
         if not QData then return end
-        State.CurrentQuestData = QData
 
         if HasQuest() then
             State.IsSafeToClick = true
-
-            -- قفل کوئست
+            
+            -- قفل کردن کوئست فعلی برای جلوگیری از باگ تداخل
             if not State.QuestLocked then
                 State.QuestLocked = true
                 State.LockedQuestData = QData
-                Log("کوئست قفل شد: " .. QData.Mob)
             end
 
+            -- چک کردن وضعیت ماب هدف
             if State.CurrentTarget and State.CurrentTarget.Mode == "Mob" and State.CurrentTarget.Instance then
                 if IsEnemyValid(State.CurrentTarget.Instance) then
                     PrepareEnemy(State.CurrentTarget.Instance); return
@@ -581,8 +387,9 @@ function LevelUpModule(Settings, WindUI, Net, ReplicatedStorage, Workspace, Twee
                 end
             end
 
+            -- جستجوی ماب در مپ
             local fm, md = nil, math.huge
-            local targetMob = State.LockedQuestData and State.LockedQuestData.Mob or QData.Mob
+            local targetMob = State.LockedQuestData.Mob
             if Workspace:FindFirstChild("Enemies") then
                 for _, v in pairs(Workspace.Enemies:GetChildren()) do
                     pcall(function()
@@ -599,11 +406,7 @@ function LevelUpModule(Settings, WindUI, Net, ReplicatedStorage, Workspace, Twee
                 State.CurrentTarget = {Mode="Mob", Instance=fm}
                 State.LastKnownSpawn = fm.HumanoidRootPart.CFrame
             else
-                if QData.IsBoss and State.BossQuestTaken and not IsBossSpawned(QData.Mob) then
-                    State.BossQuestTaken = false; State.BossKilledByOther = true
-                    if State.LastNormalQuestData then State.CurrentQuestData = State.LastNormalQuestData end
-                    return
-                end
+                -- اگر ماب پیدا نشد، برو سر جاش وایستا
                 if State.CurrentExpandedEnemy then CleanupExpandedHead(State.CurrentExpandedEnemy); State.CurrentExpandedEnemy = nil end
                 local sp = GetAggressiveSpawn(targetMob)
                 if sp then State.CurrentTarget = {Mode="Wait", CFrame=sp*CFrame.new(0,Settings.WaitHeight,0)}
@@ -611,46 +414,31 @@ function LevelUpModule(Settings, WindUI, Net, ReplicatedStorage, Workspace, Twee
                 else State.CurrentTarget = {Mode="Wait", CFrame=QData.Pos*CFrame.new(0,50,0)} end
             end
         else
-            -- کوئست تموم شد
-            if State.QuestLocked then
-                State.QuestLocked = false; State.LockedQuestData = nil
-                Log("کوئست تموم شد، قفل باز شد")
+            -- وقتی کوئست نداریم
+            if State.QuestLocked then 
+                State.QuestLocked = false; State.LockedQuestData = nil 
             end
 
             if State.CurrentExpandedEnemy then CleanupExpandedHead(State.CurrentExpandedEnemy); State.CurrentExpandedEnemy = nil end
-            State.LastKnownSpawn = nil; State.IsSafeToClick = false
+            State.LastKnownSpawn = nil
+            State.IsSafeToClick = false
 
             local freshQData = GetSmartQuest()
             if not freshQData then return end
 
+            -- رفتن سمت NPC و گرفتن کوئست
             State.CurrentTarget = {Mode="NPC", CFrame=freshQData.Pos}
-            if (Root.Position - freshQData.Pos.Position).Magnitude < 12 then
-                task.wait(0.5)
-                for a = 1, 3 do
-                    pcall(function() ReplicatedStorage.Remotes.CommF_:InvokeServer("StartQuest", freshQData.QName, freshQData.QId) end)
-                    task.wait(0.6); HandleDialogue(); task.wait(0.5)
-                    if HasQuest() then
-                        State.IsSafeToClick = true; State.CurrentTarget = nil
-                        if freshQData.IsBoss then State.BossQuestTaken = true else State.LastNormalQuestData = freshQData end
-                        State.QuestLocked = true; State.LockedQuestData = freshQData
-                        Log("کوئست جدید قفل شد: " .. freshQData.Mob)
-                        break
-                    end
-                    task.wait(0.3)
-                end
+            if (Root.Position - freshQData.Pos.Position).Magnitude < 15 then
+                pcall(function() ReplicatedStorage.Remotes.CommF_:InvokeServer("StartQuest", freshQData.QName, freshQData.QId) end)
             end
         end
     end
 
     -- ═══════════════════════════════════════
-    -- لوپ حمله
+    -- لوپ حمله و حرکت (فقط در زمان روشن بودن)
     -- ═══════════════════════════════════════
-    local function GetRandomDelay() return Settings.MinClickDelay + (math.random() * (Settings.MaxClickDelay - Settings.MinClickDelay)) end
-    local function GetRandomAttackValue() return math.floor((0.5 + math.random() * 0.5) * 10000) / 10000 end
-
     task.spawn(function()
-        while true do
-            local Clicked = false
+        while task.wait(0.1) do
             pcall(function()
                 if not State.Enabled or not State.IsSafeToClick then return end
                 if not State.CurrentTarget or State.CurrentTarget.Mode ~= "Mob" or not State.CurrentTarget.Instance then return end
@@ -659,12 +447,7 @@ function LevelUpModule(Settings, WindUI, Net, ReplicatedStorage, Workspace, Twee
                 if E ~= State.LastTargetEnemy then State.LastTargetEnemy = E; State.LastTargetTime = tick() end
                 if tick() - State.LastTargetTime < Settings.AttackWaitTime then return end
 
-                if not IsEnemyValid(E) then
-                    CleanupExpandedHead(E)
-                    if State.CurrentExpandedEnemy == E then State.CurrentExpandedEnemy = nil end
-                    State.CurrentTarget = nil; State.LastTargetEnemy = nil; return
-                end
-
+                if not IsEnemyValid(E) then return end
                 if not Plr.Character or not Plr.Character:FindFirstChild("Humanoid") then return end
 
                 pcall(function()
@@ -674,41 +457,23 @@ function LevelUpModule(Settings, WindUI, Net, ReplicatedStorage, Workspace, Twee
                 end)
 
                 EquipWeapon()
-                local Tool = Plr.Character:FindFirstChildOfClass("Tool")
-                if Tool then
-                    Clicked = true
-                    local isGun = (State.WeaponMode == "Gun") or
-                        (State.WeaponMode == "MeleeGun" and ShouldUseFinisher() and (Tool.ToolTip == "Gun" or Tool.ToolTip == "Guns"))
-
-                    if isGun then
-                        local tp = E:FindFirstChild("Head") or E:FindFirstChild("HumanoidRootPart")
-                        if tp then ShootAtTarget(tp) end
-                    else
-                        local CX, CY = Workspace.CurrentCamera.ViewportSize.X/2, Workspace.CurrentCamera.ViewportSize.Y/2
-                        VirtualInputManager:SendMouseButtonEvent(CX, CY, 0, true, game, 1)
-                        task.wait(Settings.HoldTime)
-                        VirtualInputManager:SendMouseButtonEvent(CX, CY, 0, false, game, 1)
-                        if State.AttackMethod == "Click" then
-                            RegisterAttack:FireServer(GetRandomAttackValue())
-                        elseif State.AttackMethod == "RemoteHit" then
-                            local R = E:FindFirstChild("HumanoidRootPart"); if R then RegisterHit:FireServer(R) end
-                        end
-                    end
-
-                    if State.WeaponMode == "MeleeAbility" and ShouldUseFinisher() and Tool.ToolTip == "Blox Fruit" then
-                        UseAbilities()
-                    end
+                
+                local CX, CY = Workspace.CurrentCamera.ViewportSize.X/2, Workspace.CurrentCamera.ViewportSize.Y/2
+                VirtualInputManager:SendMouseButtonEvent(CX, CY, 0, true, game, 1)
+                task.wait(Settings.HoldTime)
+                VirtualInputManager:SendMouseButtonEvent(CX, CY, 0, false, game, 1)
+                
+                if State.AttackMethod == "Click" then
+                    RegisterAttack:FireServer(math.floor((0.5 + math.random() * 0.5) * 10000) / 10000)
+                elseif State.AttackMethod == "RemoteHit" then
+                    local R = E:FindFirstChild("HumanoidRootPart"); if R then RegisterHit:FireServer(R) end
                 end
             end)
-            task.wait(Clicked and GetRandomDelay() or 0.15)
         end
     end)
 
-    -- ═══════════════════════════════════════
-    -- لوپ حرکت
-    -- ═══════════════════════════════════════
     task.spawn(function()
-        while true do
+        while task.wait(0.1) do
             pcall(function()
                 if not State.Enabled then return end
                 if not Plr.Character or not Plr.Character:FindFirstChild("HumanoidRootPart") then return end
@@ -716,26 +481,17 @@ function LevelUpModule(Settings, WindUI, Net, ReplicatedStorage, Workspace, Twee
                 local Dest = nil
 
                 if State.CurrentTarget then
-                    if State.CurrentTarget.Mode == "NPC" or State.CurrentTarget.Mode == "Wait" or State.CurrentTarget.Mode == "Travel" then
+                    if State.CurrentTarget.Mode == "NPC" or State.CurrentTarget.Mode == "Wait" then
                         Dest = State.CurrentTarget.CFrame
                     elseif State.CurrentTarget.Mode == "Mob" and State.CurrentTarget.Instance then
-                        if not IsEnemyValid(State.CurrentTarget.Instance) then
-                            CleanupExpandedHead(State.CurrentTarget.Instance)
-                            State.CurrentTarget = nil; return
-                        end
                         pcall(function()
                             if State.CurrentTarget.Instance:FindFirstChild("HumanoidRootPart") then
                                 local EP = State.CurrentTarget.Instance.HumanoidRootPart.Position
                                 local d = (Root.Position - EP); d = Vector3.new(d.X, 0, d.Z)
                                 if d.Magnitude < 0.1 then d = Vector3.new(1,0,0) end; d = d.Unit
+                                
                                 local ad, ah = Settings.AttackDistance, Settings.AttackHeight
-                                if (State.WeaponMode == "Fruit" or State.WeaponMode == "MeleeAbility") and IsBuddhaFruit() then
-                                    ad = Settings.BuddhaDistance
-                                end
-                                local T = Plr.Character:FindFirstChildOfClass("Tool")
-                                if T and (T.ToolTip == "Gun" or T.ToolTip == "Guns") then
-                                    ad = Settings.GunAttackDistance; ah = Settings.GunAttackHeight
-                                end
+                                if IsBuddhaFruit() then ad = Settings.BuddhaDistance end
                                 Dest = CFrame.lookAt(EP + d * ad + Vector3.new(0, ah, 0), EP)
                             end
                         end)
@@ -745,123 +501,53 @@ function LevelUpModule(Settings, WindUI, Net, ReplicatedStorage, Workspace, Twee
                 if Dest then
                     if State.ActiveTween then State.ActiveTween:Cancel(); State.ActiveTween = nil end
                     local dist = (Root.Position - Dest.Position).Magnitude
-                    if dist < 10 then Root.CFrame = Dest
+                    if dist < 20 then 
+                        Root.CFrame = Dest
                     else
                         State.ActiveTween = TweenService:Create(Root, TweenInfo.new(math.max(dist/Settings.FlightSpeed, 0.05), Enum.EasingStyle.Linear), {CFrame=Dest})
                         State.ActiveTween:Play()
                     end
                 end
             end)
-            task.wait(0.12)
         end
     end)
 
-    -- ═══════════════════════════════════════
-    -- لوپ دوربین
-    -- ═══════════════════════════════════════
-    task.spawn(function()
-        while task.wait(0.08) do
-            pcall(function()
-                if not State.Enabled then return end
-                if not Plr.Character or not Plr.Character:FindFirstChild("HumanoidRootPart") then return end
-                if State.CurrentTarget and State.CurrentTarget.Mode == "Mob" and State.CurrentTarget.Instance then
-                    if State.CurrentTarget.Instance:FindFirstChild("HumanoidRootPart") then
-                        local myPos = Plr.Character.HumanoidRootPart.Position + Vector3.new(0,2,0)
-                        Workspace.CurrentCamera.CFrame = CFrame.lookAt(myPos, State.CurrentTarget.Instance.HumanoidRootPart.Position)
-                    end
-                end
-            end)
-        end
-    end)
-
-    -- ═══════════════════════════════════════
-    -- Heartbeat
-    -- ═══════════════════════════════════════
     RunService.Heartbeat:Connect(function()
         pcall(function()
             if not State.Enabled then return end
-
-            -- پاکسازی FakeHead نامعتبر
-            if State.CurrentExpandedEnemy then
-                if not IsEnemyValid(State.CurrentExpandedEnemy) then
-                    CleanupExpandedHead(State.CurrentExpandedEnemy)
-                    State.CurrentExpandedEnemy = nil
-                    if State.CurrentTarget and State.CurrentTarget.Instance == State.CurrentExpandedEnemy then
-                        State.CurrentTarget = nil
-                    end
-                end
-            end
-
-            -- فریز دشمن
-            if State.CurrentTarget and State.CurrentTarget.Mode == "Mob" and State.CurrentTarget.Instance then
-                local E = State.CurrentTarget.Instance
-                if E and E.Parent and E:FindFirstChild("Humanoid") then
-                    E.Humanoid.WalkSpeed = 0; E.Humanoid.JumpPower = 0
-                    for _, p in pairs(E:GetDescendants()) do
-                        if p:IsA("BasePart") then p.CanCollide = false end
-                    end
-                end
-            end
-
-            -- نوکلیپ
             if Plr.Character then
-                for _, p in pairs(Plr.Character:GetDescendants()) do
-                    if p:IsA("BasePart") then p.CanCollide = false end
-                end
-                if Plr.Character:FindFirstChild("HumanoidRootPart") then
-                    Plr.Character.HumanoidRootPart.Velocity = Vector3.zero
-                end
+                for _, p in pairs(Plr.Character:GetDescendants()) do if p:IsA("BasePart") then p.CanCollide = false end end
+                if Plr.Character:FindFirstChild("HumanoidRootPart") then Plr.Character.HumanoidRootPart.Velocity = Vector3.zero end
             end
         end)
     end)
 
     -- ═══════════════════════════════════════
-    -- API عمومی ماژول
+    -- API خروجی
     -- ═══════════════════════════════════════
     local API = {}
 
     function API.Start()
         State.Enabled = true
         State.IsSafeToClick = true
-        State.HasTransformed = false
-        State.IsTransforming = false
         State.QuestLocked = false
         State.LockedQuestData = nil
-        Log("شروع شد!")
     end
 
     function API.Stop()
         State.Enabled = false
         State.CurrentTarget = nil
-        State.CurrentQuestData = nil
-        State.BossQuestTaken = false
-        State.WaitingForBoss = false
         State.QuestLocked = false
         State.LockedQuestData = nil
         State.IsSafeToClick = true
-        if State.CurrentExpandedEnemy then
-            CleanupExpandedHead(State.CurrentExpandedEnemy)
-            State.CurrentExpandedEnemy = nil
-        end
+        if State.CurrentExpandedEnemy then CleanupExpandedHead(State.CurrentExpandedEnemy); State.CurrentExpandedEnemy = nil end
         if State.ActiveTween then State.ActiveTween:Cancel(); State.ActiveTween = nil end
-        Log("متوقف شد!")
     end
 
     function API.SetWeaponMode(mode) State.WeaponMode = mode end
     function API.SetAttackMethod(method) State.AttackMethod = method end
     function API.SetBossInLevelUp(val) State.BossInLevelUp = val end
-    function API.IsEnabled() return State.Enabled end
-
-    function API.Tick(Root, now)
-        Tick(Root, now)
-    end
-
-    function API.GetCurrentTarget() return State.CurrentTarget end
-    function API.GetState() return State end
-    function API.HandleDialogue() HandleDialogue() end
-    function API.CleanupExpandedHead(E) CleanupExpandedHead(E) end
+    function API.Tick(Root, now) Tick(Root, now) end
 
     return API
 end
-
-return LevelUpModule
