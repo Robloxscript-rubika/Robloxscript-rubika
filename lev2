@@ -1,0 +1,312 @@
+-- LevelUpModule.lua
+-- این فایل رو توی گیت هاب بزار
+
+return function(Settings, WindUI, Net, ReplicatedStorage, Workspace, TweenService, VirtualInputManager, GuiService, RegisterAttack, RegisterHit)
+    
+    local Plr = game:GetService("Players").LocalPlayer
+    local RunService = game:GetService("RunService")
+    
+    local State = {
+        Enabled = false,
+        IsSafeToClick = true,
+        QuestLocked = false,
+        LockedQuestData = nil,
+        CurrentTarget = nil,
+        CurrentExpandedEnemy = nil,
+        LastKnownSpawn = nil,
+        LastTargetEnemy = nil,
+        LastTargetTime = 0,
+        ActiveTween = nil,
+        WeaponMode = "Melee",
+        AttackMethod = "Click",
+        BossInLevelUp = true,
+    }
+    
+    local SpawnCache = {}
+    local LevelUpDatabase = {}
+    local Sea = 0
+    local PlaceId = game.PlaceId
+    
+    if PlaceId == 2753915549 then Sea = 1
+    elseif PlaceId == 4442272183 then Sea = 2
+    elseif PlaceId == 100117331123089 then Sea = 3 end
+    
+    if Sea == 1 then
+        LevelUpDatabase = {
+            {Lvl=1,Mob="Bandit",QName="BanditQuest1",QId=1,Pos=CFrame.new(1060,17,1549)},
+            {Lvl=10,Mob="Monkey",QName="JungleQuest",QId=1,Pos=CFrame.new(-1602,37,154)},
+            {Lvl=15,Mob="Gorilla",QName="JungleQuest",QId=2,Pos=CFrame.new(-1602,37,154)},
+            {Lvl=20,Mob="Gorilla King",QName="JungleQuest",QId=3,Pos=CFrame.new(-1602,37,154),IsBoss=true},
+            {Lvl=30,Mob="Pirate",QName="BuggyQuest1",QId=1,Pos=CFrame.new(-1140,5,3830)},
+            {Lvl=40,Mob="Brute",QName="BuggyQuest1",QId=2,Pos=CFrame.new(-1140,5,3830)},
+            {Lvl=55,Mob="Bobby",QName="BuggyQuest1",QId=3,Pos=CFrame.new(-1140,5,3830),IsBoss=true},
+            {Lvl=60,Mob="Desert Bandit",QName="DesertQuest",QId=1,Pos=CFrame.new(897,7,4390)},
+            {Lvl=75,Mob="Desert Officer",QName="DesertQuest",QId=2,Pos=CFrame.new(897,7,4390)},
+            {Lvl=90,Mob="Snow Bandit",QName="SnowQuest",QId=1,Pos=CFrame.new(1386,87,-1299)},
+            {Lvl=105,Mob="Snowman",QName="SnowQuest",QId=2,Pos=CFrame.new(1386,87,-1299)},
+            {Lvl=115,Mob="Yeti",QName="SnowQuest",QId=3,Pos=CFrame.new(1386,87,-1299),IsBoss=true},
+            {Lvl=120,Mob="Chief Petty Officer",QName="MarineQuest2",QId=1,Pos=CFrame.new(-5036,28,4325)},
+            {Lvl=130,Mob="Vice Admiral",QName="MarineQuest2",QId=2,Pos=CFrame.new(-5036,28,4325),IsBoss=true},
+            {Lvl=150,Mob="Sky Bandit",QName="SkyQuest",QId=1,Pos=CFrame.new(-4840,717,-2620)},
+            {Lvl=175,Mob="Dark Master",QName="SkyQuest",QId=2,Pos=CFrame.new(-4840,717,-2620)},
+            {Lvl=190,Mob="Prisoner",QName="PrisonerQuest",QId=1,Pos=CFrame.new(5308,2,475)},
+            {Lvl=210,Mob="Warden",QName="PrisonerQuest",QId=2,Pos=CFrame.new(5308,2,475),IsBoss=true},
+            {Lvl=220,Mob="Chief Warden",QName="PrisonerQuest",QId=3,Pos=CFrame.new(5308,2,475),IsBoss=true},
+            {Lvl=230,Mob="Swan",QName="PrisonerQuest",QId=4,Pos=CFrame.new(5308,2,475),IsBoss=true},
+            {Lvl=225,Mob="Toga Warrior",QName="ColosseumQuest",QId=1,Pos=CFrame.new(-1576,8,-2985)},
+            {Lvl=275,Mob="Gladiator",QName="ColosseumQuest",QId=2,Pos=CFrame.new(-1576,8,-2985)},
+            {Lvl=300,Mob="Military Soldier",QName="MagmaQuest",QId=1,Pos=CFrame.new(-5315,12,8516)},
+            {Lvl=325,Mob="Military Spy",QName="MagmaQuest",QId=2,Pos=CFrame.new(-5315,12,8516)},
+            {Lvl=350,Mob="Magma Admiral",QName="MagmaQuest",QId=3,Pos=CFrame.new(-5315,12,8516),IsBoss=true},
+            {Lvl=375,Mob="Fishman Warrior",QName="FishmanQuest",QId=1,Pos=CFrame.new(61122,19,1568)},
+            {Lvl=400,Mob="Fishman Commando",QName="FishmanQuest",QId=2,Pos=CFrame.new(61122,19,1568)},
+            {Lvl=425,Mob="Fishman Lord",QName="FishmanQuest",QId=3,Pos=CFrame.new(61122,19,1568),IsBoss=true},
+            {Lvl=450,Mob="God's Guard",QName="SkyExp1Quest",QId=1,Pos=CFrame.new(-4722,845,-1951)},
+            {Lvl=475,Mob="Shanda",QName="SkyExp1Quest",QId=2,Pos=CFrame.new(-7860,5545,-381)},
+            {Lvl=500,Mob="Wysper",QName="SkyExp1Quest",QId=3,Pos=CFrame.new(-7860,5545,-381),IsBoss=true},
+            {Lvl=525,Mob="Royal Squad",QName="SkyExp2Quest",QId=1,Pos=CFrame.new(-7904,5636,-1412)},
+            {Lvl=550,Mob="Royal Soldier",QName="SkyExp2Quest",QId=2,Pos=CFrame.new(-7904,5636,-1412)},
+            {Lvl=575,Mob="Thunder God",QName="SkyExp2Quest",QId=3,Pos=CFrame.new(-7904,5636,-1412),IsBoss=true},
+            {Lvl=625,Mob="Galley Pirate",QName="FountainQuest",QId=1,Pos=CFrame.new(5259,39,4050)},
+            {Lvl=650,Mob="Galley Captain",QName="FountainQuest",QId=2,Pos=CFrame.new(5259,39,4050)},
+            {Lvl=675,Mob="Cyborg",QName="FountainQuest",QId=3,Pos=CFrame.new(5259,39,4050),IsBoss=true},
+            {Lvl=700,Mob="Ice Admiral",QName="FountainQuest",QId=4,Pos=CFrame.new(5259,39,4050),IsBoss=true},
+        }
+    elseif Sea == 2 then
+        LevelUpDatabase = {
+            {Lvl=700,Mob="Raider",QName="Area1Quest",QId=1,Pos=CFrame.new(-425,73,1835)},
+            {Lvl=725,Mob="Mercenary",QName="Area1Quest",QId=2,Pos=CFrame.new(-425,73,1835)},
+            {Lvl=750,Mob="Diamond",QName="Area1Quest",QId=3,Pos=CFrame.new(-425,73,1835),IsBoss=true},
+            {Lvl=775,Mob="Swan Pirate",QName="Area2Quest",QId=1,Pos=CFrame.new(637,72,917)},
+            {Lvl=800,Mob="Factory Staff",QName="Area2Quest",QId=2,Pos=CFrame.new(637,72,917)},
+            {Lvl=850,Mob="Jeremy",QName="Area2Quest",QId=3,Pos=CFrame.new(637,72,917),IsBoss=true},
+            {Lvl=875,Mob="Marine Lieutenant",QName="MarineQuest3",QId=1,Pos=CFrame.new(-2442,75,-3219)},
+            {Lvl=900,Mob="Marine Captain",QName="MarineQuest3",QId=2,Pos=CFrame.new(-2442,75,-3219)},
+            {Lvl=925,Mob="Orbitus",QName="MarineQuest3",QId=3,Pos=CFrame.new(-2442,75,-3219),IsBoss=true},
+            {Lvl=950,Mob="Zombie",QName="ZombieQuest",QId=1,Pos=CFrame.new(-5492,49,-794)},
+            {Lvl=975,Mob="Vampire",QName="ZombieQuest",QId=2,Pos=CFrame.new(-5492,49,-794)},
+            {Lvl=1000,Mob="Snow Trooper",QName="SnowMountainQuest",QId=1,Pos=CFrame.new(606,402,-5369)},
+            {Lvl=1050,Mob="Winter Warrior",QName="SnowMountainQuest",QId=2,Pos=CFrame.new(606,402,-5369)},
+            {Lvl=1100,Mob="Lab Subordinate",QName="IceSideQuest",QId=1,Pos=CFrame.new(-6230,81,-4850)},
+            {Lvl=1125,Mob="Horned Warrior",QName="IceSideQuest",QId=2,Pos=CFrame.new(-6230,81,-4850)},
+            {Lvl=1150,Mob="Smoke Admiral",QName="IceSideQuest",QId=3,Pos=CFrame.new(-6230,81,-4850),IsBoss=true},
+            {Lvl=1175,Mob="Magma Ninja",QName="FireSideQuest",QId=1,Pos=CFrame.new(-5405,29,-5370)},
+            {Lvl=1200,Mob="Lava Pirate",QName="FireSideQuest",QId=2,Pos=CFrame.new(-5405,29,-5370)},
+            {Lvl=1250,Mob="Ship Deckhand",QName="ShipQuest1",QId=1,Pos=CFrame.new(921,126,32832)},
+            {Lvl=1275,Mob="Ship Engineer",QName="ShipQuest1",QId=2,Pos=CFrame.new(921,126,32832)},
+            {Lvl=1300,Mob="Ship Steward",QName="ShipQuest2",QId=1,Pos=CFrame.new(912,126,33198)},
+            {Lvl=1325,Mob="Ship Officer",QName="ShipQuest2",QId=2,Pos=CFrame.new(912,126,33198)},
+            {Lvl=1350,Mob="Arctic Warrior",QName="FrostQuest",QId=1,Pos=CFrame.new(6115,29,-6222)},
+            {Lvl=1375,Mob="Snow Lurker",QName="FrostQuest",QId=2,Pos=CFrame.new(6115,29,-6222)},
+            {Lvl=1400,Mob="Awakened Ice Admiral",QName="FrostQuest",QId=3,Pos=CFrame.new(6115,29,-6222),IsBoss=true},
+            {Lvl=1425,Mob="Sea Soldier",QName="ForgottenQuest",QId=1,Pos=CFrame.new(-3053,237,-10146)},
+            {Lvl=1450,Mob="Water Fighter",QName="ForgottenQuest",QId=2,Pos=CFrame.new(-3053,237,-10146)},
+            {Lvl=1475,Mob="Tide Keeper",QName="ForgottenQuest",QId=3,Pos=CFrame.new(-3053,237,-10146),IsBoss=true},
+        }
+    elseif Sea == 3 then
+        LevelUpDatabase = {
+            {Lvl=1500,Mob="Pirate Millionaire",QName="PiratePortQuest",QId=1,Pos=CFrame.new(-288,43,5433)},
+            {Lvl=1525,Mob="Pistol Billionaire",QName="PiratePortQuest",QId=2,Pos=CFrame.new(-288,43,5433)},
+            {Lvl=1550,Mob="Stone",QName="PiratePortQuest",QId=3,Pos=CFrame.new(-288,43,5433),IsBoss=true},
+            {Lvl=1575,Mob="Dragon Crew Warrior",QName="AmazonQuest",QId=1,Pos=CFrame.new(5833,52,-1103)},
+            {Lvl=1600,Mob="Dragon Crew Archer",QName="AmazonQuest",QId=2,Pos=CFrame.new(5833,52,-1103)},
+            {Lvl=1625,Mob="Female Islander",QName="AmazonQuest2",QId=1,Pos=CFrame.new(5449,602,750)},
+            {Lvl=1650,Mob="Giant Islander",QName="AmazonQuest2",QId=2,Pos=CFrame.new(5449,602,750)},
+            {Lvl=1675,Mob="Island Empress",QName="AmazonQuest2",QId=3,Pos=CFrame.new(5449,602,750),IsBoss=true},
+            {Lvl=1700,Mob="Marine Commodore",QName="MarineTreeIsland",QId=1,Pos=CFrame.new(2182,28,-6738)},
+            {Lvl=1725,Mob="Marine Rear Admiral",QName="MarineTreeIsland",QId=2,Pos=CFrame.new(2182,28,-6738)},
+            {Lvl=1750,Mob="Kilo Admiral",QName="MarineTreeIsland",QId=3,Pos=CFrame.new(2182,28,-6738),IsBoss=true},
+            {Lvl=1775,Mob="Fishman Raider",QName="DeepForestIsland",QId=1,Pos=CFrame.new(-10582,331,-8758)},
+            {Lvl=1800,Mob="Fishman Captain",QName="DeepForestIsland",QId=2,Pos=CFrame.new(-10582,331,-8758)},
+            {Lvl=1825,Mob="Forest Pirate",QName="DeepForestIsland2",QId=1,Pos=CFrame.new(-10332,331,-8912)},
+            {Lvl=1850,Mob="Mythological Pirate",QName="DeepForestIsland2",QId=2,Pos=CFrame.new(-10332,331,-8912)},
+            {Lvl=1875,Mob="Captain Elephant",QName="DeepForestIsland2",QId=3,Pos=CFrame.new(-10332,331,-8912),IsBoss=true},
+            {Lvl=1900,Mob="Jungle Pirate",QName="HauntedQuest1",QId=1,Pos=CFrame.new(-9515,142,5537)},
+            {Lvl=1925,Mob="Musketeer Pirate",QName="HauntedQuest1",QId=2,Pos=CFrame.new(-9515,142,5537)},
+            {Lvl=1950,Mob="Beautiful Pirate",QName="HauntedQuest1",QId=3,Pos=CFrame.new(-9515,142,5537),IsBoss=true},
+            {Lvl=1975,Mob="Reborn Skeleton",QName="HauntedQuest2",QId=1,Pos=CFrame.new(-9515,142,5537)},
+            {Lvl=2000,Mob="Living Zombie",QName="HauntedQuest2",QId=2,Pos=CFrame.new(-9515,142,5537)},
+            {Lvl=2025,Mob="Demonic Soul",QName="HauntedQuest3",QId=1,Pos=CFrame.new(-9515,142,5537)},
+            {Lvl=2075,Mob="Posessed Mummy",QName="HauntedQuest3",QId=2,Pos=CFrame.new(-9515,142,5537)},
+            {Lvl=2125,Mob="Peanut Scout",QName="PeanutQuest",QId=1,Pos=CFrame.new(-2022,37,-12025)},
+            {Lvl=2150,Mob="Peanut President",QName="PeanutQuest",QId=2,Pos=CFrame.new(-2022,37,-12025)},
+            {Lvl=2200,Mob="Ice Cream Chef",QName="IceCreamIslandQuest",QId=1,Pos=CFrame.new(-818,65,-10965)},
+            {Lvl=2225,Mob="Ice Cream Commander",QName="IceCreamIslandQuest",QId=2,Pos=CFrame.new(-818,65,-10965)},
+            {Lvl=2250,Mob="Ice Cream Queen",QName="IceCreamIslandQuest",QId=3,Pos=CFrame.new(-818,65,-10965),IsBoss=true},
+            {Lvl=2275,Mob="Cookie Crafter",QName="CakeQuest1",QId=1,Pos=CFrame.new(-2020,37,-12025)},
+            {Lvl=2300,Mob="Cake Guard",QName="CakeQuest1",QId=2,Pos=CFrame.new(-2020,37,-12025)},
+            {Lvl=2325,Mob="Baking Staff",QName="CakeQuest2",QId=1,Pos=CFrame.new(-1926,37,-12850)},
+            {Lvl=2350,Mob="Head Baker",QName="CakeQuest2",QId=2,Pos=CFrame.new(-1926,37,-12850)},
+            {Lvl=2400,Mob="Cocoa Warrior",QName="CandySummerQuest",QId=1,Pos=CFrame.new(-1149,13,-12836)},
+            {Lvl=2425,Mob="Chocolate Bar Battler",QName="CandySummerQuest",QId=2,Pos=CFrame.new(-1149,13,-12836)},
+            {Lvl=2450,Mob="Isle Outlaw",QName="TikiQuest1",QId=1,Pos=CFrame.new(-16547,55,-172)},
+            {Lvl=2475,Mob="Island Boy",QName="TikiQuest1",QId=2,Pos=CFrame.new(-16547,55,-172)},
+            {Lvl=2500,Mob="Sun Kissed Warrior",QName="TikiQuest2",QId=1,Pos=CFrame.new(-16540,55,1054)},
+            {Lvl=2525,Mob="Isle Champion",QName="TikiQuest2",QId=2,Pos=CFrame.new(-16540,55,1054)},
+            {Lvl=2550,Mob="Serpent Hunter",QName="TikiQuest3",QId=1,Pos=CFrame.new(-16667,105,1579)},
+            {Lvl=2575,Mob="Skull Slayer",QName="TikiQuest3",QId=2,Pos=CFrame.new(-16667,105,1579)},
+            {Lvl=2600,Mob="Reef Bandit",QName="SubmergedQuest1",QId=1,Pos=CFrame.new(10779,-2088,9262)},
+            {Lvl=2625,Mob="Coral Pirate",QName="SubmergedQuest1",QId=2,Pos=CFrame.new(10779,-2088,9262)},
+            {Lvl=2650,Mob="Sea Chanter",QName="SubmergedQuest2",QId=1,Pos=CFrame.new(10883,-2087,10032)},
+            {Lvl=2675,Mob="High Disciple",QName="SubmergedQuest3",QId=1,Pos=CFrame.new(9639,-1993,9616)},
+            {Lvl=2700,Mob="Grand Devotee",QName="SubmergedQuest3",QId=2,Pos=CFrame.new(9639,-1993,9616)},
+        }
+    end
+
+    local function GetMyLevel() local s, l = pcall(function() return Plr.Data.Level.Value end); return s and l or 1 end
+    local function HasQuest() local g = Plr.PlayerGui:FindFirstChild("Main"); return g and g:FindFirstChild("Quest") and g.Quest.Visible or false end
+    local function IsEnemyValid(E) if not E or not E.Parent then return false end; local hum = E:FindFirstChild("Humanoid"); if not hum or hum.Health <= 0 then return false end; return E:FindFirstChild("HumanoidRootPart") ~= nil end
+    local function IsBossAlive(n) local E = Workspace:FindFirstChild("Enemies"); if E then for _, v in pairs(E:GetChildren()) do if string.find(v.Name, n) and v:FindFirstChild("Humanoid") and v.Humanoid.Health > 0 then return true end end end; return false end
+    local function IsBossSpawned(n) local W = Workspace:FindFirstChild("_WorldOrigin"); if W and W:FindFirstChild("EnemySpawns") then for _, v in pairs(W.EnemySpawns:GetChildren()) do if string.find(v.Name, n) then return true end end end; return IsBossAlive(n) end
+    local function GetAggressiveSpawn(n) if SpawnCache[n] then return SpawnCache[n] end; local W = Workspace:FindFirstChild("_WorldOrigin"); if W and W:FindFirstChild("EnemySpawns") then for _, v in pairs(W.EnemySpawns:GetChildren()) do if string.find(v.Name, n) then SpawnCache[n] = v.CFrame; return v.CFrame end end end; return nil end
+
+    local function CleanupExpandedHead(E) pcall(function() if not E or not E.Parent then return end; local H = E:FindFirstChild("Head"); local FH = E:FindFirstChild("FakeHead"); if FH then if H then H.Size = FH.Size; H.Transparency = FH.Transparency end; FH:Destroy() end end) end
+    local function ExpandHead(E, hs) pcall(function() if not E or not E.Parent then return end; local H = E:FindFirstChild("Head"); if not H then return end; if State.CurrentExpandedEnemy and State.CurrentExpandedEnemy ~= E then CleanupExpandedHead(State.CurrentExpandedEnemy); State.CurrentExpandedEnemy = nil end; if E:FindFirstChild("FakeHead") then H.Size = Vector3.new(hs, hs, hs); H.Transparency = 1; H.CanCollide = false; State.CurrentExpandedEnemy = E; return end; State.CurrentExpandedEnemy = E; local FH = H:Clone(); FH.Name = "FakeHead"; FH.CanCollide = false; FH.Anchored = false; FH.Massless = true; FH.Size = H.Size; FH.Transparency = H.Transparency; FH.Parent = E; local W = Instance.new("WeldConstraint"); W.Part0 = H; W.Part1 = FH; W.Parent = FH; H.Size = Vector3.new(hs, hs, hs); H.Transparency = 1; H.CanCollide = false; for _, c in pairs(H:GetChildren()) do if c:IsA("SpecialMesh") or c:IsA("Decal") or c:IsA("FaceInstance") or c:IsA("Texture") then c:Destroy() end; if c:IsA("BillboardGui") then c.Adornee = FH end end end) end
+    local function PrepareEnemy(E) pcall(function() if not E or not E.Parent or not E:FindFirstChild("HumanoidRootPart") then return end; ExpandHead(E, Settings.HeadSize); if Settings.FreezeEnemy and E:FindFirstChild("Humanoid") then E.Humanoid.WalkSpeed = 0; E.Humanoid.JumpPower = 0; if Settings.RemoveAnimator and E.Humanoid:FindFirstChild("Animator") then E.Humanoid.Animator:Destroy() end end; for _, p in pairs(E:GetDescendants()) do if p:IsA("BasePart") then p.CanCollide = false end end end) end
+
+    local function EquipToolByType(ttype) pcall(function() if not Plr.Character then return end; local h = Plr.Character:FindFirstChild("Humanoid"); if not h then return end; local t = Plr.Character:FindFirstChildOfClass("Tool"); if t and (t.ToolTip == ttype or (ttype=="Gun" and t.ToolTip=="Guns")) then return end; for _, t2 in pairs(Plr.Backpack:GetChildren()) do if t2:IsA("Tool") and (t2.ToolTip == ttype or (ttype=="Gun" and t2.ToolTip=="Guns")) then h:EquipTool(t2); return end end end) end
+    local function IsBuddhaFruit() local t = Plr.Character and Plr.Character:FindFirstChildOfClass("Tool"); if not t then for _, t2 in pairs(Plr.Backpack:GetChildren()) do if t2:IsA("Tool") and t2.ToolTip == "Blox Fruit" then t = t2; break end end end; return t and string.find(string.lower(t.Name), "buddha") ~= nil end
+    local function ShouldUseFinisher() if not State.CurrentTarget or not State.CurrentTarget.Instance then return false end; local h = State.CurrentTarget.Instance:FindFirstChild("Humanoid"); return h and h.Health <= Settings.SwitchHP end
+    local function EquipWeapon() local wm = State.WeaponMode; if wm == "Melee" then EquipToolByType("Melee") elseif wm == "Sword" then EquipToolByType("Sword") elseif wm == "Gun" then EquipToolByType("Gun") elseif wm == "Fruit" then EquipToolByType("Blox Fruit") elseif wm == "MeleeGun" then if ShouldUseFinisher() then EquipToolByType("Gun") else EquipToolByType("Melee") end elseif wm == "MeleeAbility" then if ShouldUseFinisher() then EquipToolByType("Blox Fruit") else EquipToolByType("Melee") end end end
+
+    local function GetSmartQuest()
+        if State.QuestLocked and State.LockedQuestData then return State.LockedQuestData end
+        local ml = GetMyLevel()
+        local bestQuest = LevelUpDatabase[1]
+        local prevNormalQuest = LevelUpDatabase[1]
+        for _, d in ipairs(LevelUpDatabase) do if ml >= d.Lvl then bestQuest = d; if not d.IsBoss then prevNormalQuest = d end end end
+        if not bestQuest then return nil end
+        if bestQuest.IsBoss then if not State.BossInLevelUp then return prevNormalQuest end; if not IsBossSpawned(bestQuest.Mob) then return prevNormalQuest end end
+        return bestQuest
+    end
+
+    -- 🌟 سیستم هوشمند پورتال در لول آپ
+    local function HandlePortals(targetCFrame)
+        local root = Plr.Character and Plr.Character:FindFirstChild("HumanoidRootPart")
+        if not root then return false end
+        local distToTarget = (root.Position - targetCFrame.Position).Magnitude
+        if distToTarget < 800 then return false end
+        if Sea == 1 then
+            if targetCFrame.Y > 500 and root.Position.Y < 500 then ReplicatedStorage.Remotes.CommF_:InvokeServer("requestEntrance", Vector3.new(-4607.82, 874.39, -1667.55)); task.wait(1.5); return true
+            elseif targetCFrame.Y < 500 and root.Position.Y > 500 then ReplicatedStorage.Remotes.CommF_:InvokeServer("requestEntrance", Vector3.new(-7894.61, 5547.14, -380.29)); task.wait(1.5); return true end
+            if targetCFrame.X > 50000 and root.Position.X < 50000 then ReplicatedStorage.Remotes.CommF_:InvokeServer("requestEntrance", Vector3.new(61163.85, 11.68, 1819.78)); task.wait(1.5); return true
+            elseif targetCFrame.X < 50000 and root.Position.X > 50000 then ReplicatedStorage.Remotes.CommF_:InvokeServer("requestEntrance", Vector3.new(3864.68, 6.73, -1926.21)); task.wait(1.5); return true end
+        elseif Sea == 2 then
+            local shipCenter = Vector3.new(923, 126, 32852)
+            local inShip = (root.Position - shipCenter).Magnitude < 3000
+            local targetInShip = (targetCFrame.Position - shipCenter).Magnitude < 3000
+            if targetInShip and not inShip then ReplicatedStorage.Remotes.CommF_:InvokeServer("requestEntrance", Vector3.new(923.21, 126.97, 32852.83)); task.wait(1.5); return true
+            elseif not targetInShip and inShip then ReplicatedStorage.Remotes.CommF_:InvokeServer("requestEntrance", Vector3.new(-6508.55, 89.03, -132.84)); task.wait(1.5); return true end
+        end
+        return false
+    end
+
+    local function Tick(Root, now)
+        if not State.Enabled then return end
+        local QData = GetSmartQuest()
+        if not QData then return end
+
+        if Sea == 2 then
+            local shipCenter = Vector3.new(923, 126, 32852)
+            local inShip = (Root.Position - shipCenter).Magnitude < 3000
+            if QData.Lvl >= 1250 and QData.Lvl <= 1325 then
+                if not inShip then if State.ActiveTween then State.ActiveTween:Cancel(); State.ActiveTween = nil end; pcall(function() ReplicatedStorage.Remotes.CommF_:InvokeServer("requestEntrance", Vector3.new(923.213, 126.976, 32852.832)) end); task.wait(2); return end
+            elseif QData.Lvl > 1325 and inShip then
+                if State.ActiveTween then State.ActiveTween:Cancel(); State.ActiveTween = nil end; pcall(function() ReplicatedStorage.Remotes.CommF_:InvokeServer("requestEntrance", Vector3.new(-6508.558, 89.035, -132.84)) end); task.wait(2); return end
+        end
+
+        if HasQuest() then
+            State.IsSafeToClick = true
+            if not State.QuestLocked then State.QuestLocked = true; State.LockedQuestData = QData end
+            if State.CurrentTarget and State.CurrentTarget.Mode == "Mob" and State.CurrentTarget.Instance then
+                if IsEnemyValid(State.CurrentTarget.Instance) then PrepareEnemy(State.CurrentTarget.Instance); return
+                else CleanupExpandedHead(State.CurrentTarget.Instance); if State.CurrentExpandedEnemy == State.CurrentTarget.Instance then State.CurrentExpandedEnemy = nil end; State.CurrentTarget = nil end
+            end
+            local fm, md = nil, math.huge
+            local targetMob = State.LockedQuestData.Mob
+            if Workspace:FindFirstChild("Enemies") then for _, v in pairs(Workspace.Enemies:GetChildren()) do pcall(function() if string.find(v.Name, targetMob) and IsEnemyValid(v) then local d = (Root.Position - v.HumanoidRootPart.Position).Magnitude; if d < md then md = d; fm = v end end end) end end
+            if fm then PrepareEnemy(fm); State.CurrentTarget = {Mode="Mob", Instance=fm}; State.LastKnownSpawn = fm.HumanoidRootPart.CFrame
+            else
+                if State.CurrentExpandedEnemy then CleanupExpandedHead(State.CurrentExpandedEnemy); State.CurrentExpandedEnemy = nil end
+                local sp = GetAggressiveSpawn(targetMob)
+                if sp then State.CurrentTarget = {Mode="Wait", CFrame=sp*CFrame.new(0,Settings.WaitHeight,0)}
+                elseif State.LastKnownSpawn then State.CurrentTarget = {Mode="Wait", CFrame=State.LastKnownSpawn*CFrame.new(0,Settings.WaitHeight,0)}
+                else State.CurrentTarget = {Mode="Wait", CFrame=QData.Pos*CFrame.new(0,50,0)} end
+            end
+        else
+            if State.QuestLocked then State.QuestLocked = false; State.LockedQuestData = nil end
+            if State.CurrentExpandedEnemy then CleanupExpandedHead(State.CurrentExpandedEnemy); State.CurrentExpandedEnemy = nil end
+            State.LastKnownSpawn = nil; State.IsSafeToClick = false
+            local freshQData = GetSmartQuest()
+            if not freshQData then return end
+            State.CurrentTarget = {Mode="NPC", CFrame=freshQData.Pos}
+            if (Root.Position - freshQData.Pos.Position).Magnitude < 15 then pcall(function() ReplicatedStorage.Remotes.CommF_:InvokeServer("StartQuest", freshQData.QName, freshQData.QId) end) end
+        end
+    end
+
+    task.spawn(function()
+        while task.wait(0.1) do
+            pcall(function()
+                if not State.Enabled or not State.IsSafeToClick then return end
+                if not State.CurrentTarget or State.CurrentTarget.Mode ~= "Mob" or not State.CurrentTarget.Instance then return end
+                local E = State.CurrentTarget.Instance
+                if E ~= State.LastTargetEnemy then State.LastTargetEnemy = E; State.LastTargetTime = tick() end
+                if tick() - State.LastTargetTime < Settings.AttackWaitTime then return end
+                if not IsEnemyValid(E) then return end
+                if not Plr.Character or not Plr.Character:FindFirstChild("Humanoid") then return end
+                pcall(function() if E:FindFirstChild("Head") then Workspace.CurrentCamera.CFrame = CFrame.lookAt(Workspace.CurrentCamera.CFrame.Position, E.Head.Position) end end)
+                EquipWeapon()
+                local CX, CY = Workspace.CurrentCamera.ViewportSize.X/2, Workspace.CurrentCamera.ViewportSize.Y/2
+                VirtualInputManager:SendMouseButtonEvent(CX, CY, 0, true, game, 1); task.wait(Settings.HoldTime); VirtualInputManager:SendMouseButtonEvent(CX, CY, 0, false, game, 1)
+                if State.AttackMethod == "Click" then RegisterAttack:FireServer(math.floor((0.5 + math.random() * 0.5) * 10000) / 10000) elseif State.AttackMethod == "RemoteHit" then local R = E:FindFirstChild("HumanoidRootPart"); if R then RegisterHit:FireServer(R) end end
+            end)
+        end
+    end)
+
+    task.spawn(function()
+        while task.wait(0.1) do
+            pcall(function()
+                if not State.Enabled then return end
+                if not Plr.Character or not Plr.Character:FindFirstChild("HumanoidRootPart") then return end
+                local Root = Plr.Character.HumanoidRootPart
+                local Dest = nil
+                if State.CurrentTarget then
+                    if State.CurrentTarget.Mode == "NPC" or State.CurrentTarget.Mode == "Wait" then Dest = State.CurrentTarget.CFrame
+                    elseif State.CurrentTarget.Mode == "Mob" and State.CurrentTarget.Instance then
+                        pcall(function()
+                            if State.CurrentTarget.Instance:FindFirstChild("HumanoidRootPart") then
+                                local EP = State.CurrentTarget.Instance.HumanoidRootPart.Position
+                                local d = (Root.Position - EP); d = Vector3.new(d.X, 0, d.Z)
+                                if d.Magnitude < 0.1 then d = Vector3.new(1,0,0) end; d = d.Unit
+                                local ad, ah = Settings.AttackDistance, Settings.AttackHeight
+                                if IsBuddhaFruit() then ad = Settings.BuddhaDistance end
+                                Dest = CFrame.lookAt(EP + d * ad + Vector3.new(0, ah, 0), EP)
+                            end
+                        end)
+                    end
+                end
+
+                if Dest then
+                    if HandlePortals(Dest) then return end -- 🌟 پورتال هوشمند در لول آپ
+                    if State.ActiveTween then State.ActiveTween:Cancel(); State.ActiveTween = nil end
+                    local dist = (Root.Position - Dest.Position).Magnitude
+                    if dist < 20 then Root.CFrame = Dest else
+                        State.ActiveTween = TweenService:Create(Root, TweenInfo.new(math.max(dist/Settings.FlightSpeed, 0.05), Enum.EasingStyle.Linear), {CFrame=Dest})
+                        State.ActiveTween:Play()
+                    end
+                end
+            end)
+        end
+    end)
+
+    RunService.Heartbeat:Connect(function() pcall(function() if not State.Enabled then return end; if Plr.Character then for _, p in pairs(Plr.Character:GetDescendants()) do if p:IsA("BasePart") then p.CanCollide = false end end; if Plr.Character:FindFirstChild("HumanoidRootPart") then Plr.Character.HumanoidRootPart.Velocity = Vector3.zero end end end) end)
+
+    local API = {}
+    function API.Start() State.Enabled = true; State.IsSafeToClick = true; State.QuestLocked = false; State.LockedQuestData = nil end
+    function API.Stop() State.Enabled = false; State.CurrentTarget = nil; State.QuestLocked = false; State.LockedQuestData = nil; State.IsSafeToClick = true; if State.CurrentExpandedEnemy then CleanupExpandedHead(State.CurrentExpandedEnemy); State.CurrentExpandedEnemy = nil end; if State.ActiveTween then State.ActiveTween:Cancel(); State.ActiveTween = nil end end
+    function API.SetWeaponMode(mode) State.WeaponMode = mode end
+    function API.SetAttackMethod(method) State.AttackMethod = method end
+    function API.SetBossInLevelUp(val) State.BossInLevelUp = val end
+    function API.Tick(Root, now) Tick(Root, now) end
+    return API
+end
