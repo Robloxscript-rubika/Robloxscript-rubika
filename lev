@@ -36,10 +36,12 @@ return function(Settings, WindUI, Net, ReplicatedStorage, Workspace, TweenServic
     -- ═══════════════════════════════════════
     -- تشخیص دریا 
     -- ═══════════════════════════════════════
-    local PlaceId = game.PlaceId
-    if PlaceId == 2753915549 then Sea = 1
-    elseif PlaceId == 79091703265657 then Sea = 2
-    elseif PlaceId == 100117331123089 then Sea = 3 end
+local Sea, SeaName = 1, "دریای اول"
+local Map = game:GetService("Workspace"):WaitForChild("Map", 5)
+if Map then
+    if Map:FindFirstChild("Dressrosa") or Map:FindFirstChild("Water7") then Sea = 2; SeaName = "دریای دوم"
+    elseif Map:FindFirstChild("Zou") or Map:FindFirstChild("Turtle") then Sea = 3; SeaName = "دریای سوم" end
+end
     
     -- ═══════════════════════════════════════
     -- دیتابیس لول آپ
